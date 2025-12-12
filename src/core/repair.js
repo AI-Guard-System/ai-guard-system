@@ -96,8 +96,10 @@ export function repairJSON(raw) {
     }
   }
 
-  // Handle trailing comma before closing (common LLM mistake)
-  // Remove trailing comma if it's the last significant char
+  // Handle trailing commas (common LLM mistake)
+  // Remove commas that appear right before a closing bracket/brace
+  result = result.replace(/,\s*(?=[}\]])/g, '');
+  // Also remove a trailing comma at the very end
   result = result.replace(/,\s*$/, '');
 
   // Now close remaining brackets in reverse order
