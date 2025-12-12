@@ -1,33 +1,30 @@
-# React AI Guard
+# react-ai-guard
 
-> Protect your AI applications from PII leakage and repair malformed JSON from LLM responses.
+Client-side safety layer for Large Language Model (LLM) applications.
 
-[![npm version](https://img.shields.io/npm/v/react-ai-guard.svg)](https://www.npmjs.com/package/react-ai-guard)
-[![license](https://img.shields.io/npm/l/react-ai-guard.svg)](https://github.com/yourusername/react-ai-guard/blob/main/LICENSE)
+A lightweight, zero-dependency React library that ensures application stability and data privacy when integrating with LLMs. It executes entirely within a dedicated Web Worker to maintain 60fps UI performance, regardless of stream volume or validation complexity.
 
 ---
 
 ## The Problem
 
-Building AI-powered applications comes with two painful realities:
+Integrating streaming LLM responses into React applications introduces two critical risks:
 
-1. **PII Leakage**: Users accidentally (or intentionally) paste sensitive data—emails, SSNs, credit cards, API keys—into your AI chat. That data gets sent to third-party LLMs, logged in your backend, and suddenly you're explaining a data breach to your legal team.
+1. **Application Crashes**: `JSON.parse()` fails when processing partial or malformed JSON chunks typical of streaming responses. This often leads to white screens or extensive try/catch boilerplate.
 
-2. **Broken JSON**: LLMs love to respond with JSON... wrapped in markdown, with trailing commas, unquoted keys, or truncated mid-stream. Your `JSON.parse()` fails, your app crashes, users complain.
-
-**React AI Guard solves both.**
+2. **Data Exfiltration**: Users may inadvertently paste sensitive information (PII, API keys) into prompts, which are then sent to third-party model providers.
 
 ---
 
-## Features
+## The Solution
 
-✅ **PII Scanner** — Detect 15+ types of sensitive data (emails, phones, SSNs, credit cards, API keys, JWTs, and more)  
-✅ **Auto-Sanitization** — Replace PII with safe placeholders before sending to LLMs  
-✅ **JSON Repair** — Fix malformed LLM responses (trailing commas, comments, markdown blocks, truncated streams)  
-✅ **Web Worker Support** — Offload processing to a worker thread for zero UI lag  
-✅ **React Hooks** — `useAIGuard()` hook for seamless integration  
-✅ **Zero Dependencies** — Pure JavaScript core, works anywhere  
-✅ **TypeScript Ready** — Full type definitions included  
+`react-ai-guard` acts as a middleware between the user/LLM and your application state.
+
+- **Deterministic JSON Repair**: Utilizes a stack-based finite state machine to auto-close brackets, quotes, and structural errors in real-time. It transforms broken streams (e.g., `{"data": {"nam`) into valid JavaScript objects.
+
+- **Client-Side Firewall**: Scans input text for sensitive patterns (Credit Cards, SSNs, API Keys) using a background thread before the network request is initiated.
+
+- **Main Thread Isolation**: All heavy computation (regex scanning, recursive parsing) is offloaded to a Web Worker, ensuring the UI thread remains unblocked.
 
 ---
 
@@ -35,392 +32,161 @@ Building AI-powered applications comes with two painful realities:
 
 ```bash
 npm install react-ai-guard
-# or
-yarn add react-ai-guard
-# or
-pnpm add react-ai-guard
 ```
 
 ---
 
-## Quick Start
+## Usage
 
-### PII Scanning
+### 1. Handling Streaming JSON
 
-```jsx
-import { useAIGuard } from 'react-ai-guard';
+Use the `useStreamingJson` hook to consume raw text streams. It guarantees a valid object at every render cycle, eliminating the need for manual parsing logic.
 
-function ChatInput() {
-  const { scanText, sanitizeText, detectPII } = useAIGuard();
-
-  const handleSubmit = async (message) => {
-    // Quick check
-    if (await detectPII(message)) {
-      alert('Your message contains sensitive information!');
-      return;
-    }
-
-    // Or scan for details
-    const result = await scanText(message);
-    if (result.hasPII) {
-      console.log('Found PII:', result.matches);
-      // Use sanitized version
-      sendToLLM(result.sanitized);
-    }
-  };
-
-  return <textarea onSubmit={handleSubmit} />;
-}
-```
-
-### JSON Repair
-
-```jsx
-import { useAIGuard } from 'react-ai-guard';
-
-function AIResponse() {
-  const { repairJSON, parseJSON } = useAIGuard();
-
-  const handleLLMResponse = async (rawResponse) => {
-    // Safe parse with automatic repair
-    const data = await parseJSON(rawResponse, { fallback: {} });
-    
-    // Or get detailed repair info
-    const result = await repairJSON(rawResponse);
-    if (result.success) {
-      console.log('Fixes applied:', result.fixes);
-      console.log('Parsed data:', result.data);
-    }
-  };
-}
-```
-
-### Streaming JSON with Schema Validation (v1.1.0+)
-
-Use `useStreamingJson` with Zod schemas for real-time validation of LLM streams:
-
-```jsx
+```javascript
 import { useStreamingJson } from 'react-ai-guard';
+
+const ChatComponent = ({ rawStream }) => {
+  // rawStream: '{"user": {"name": "Ali'
+  const { data, isValid } = useStreamingJson(rawStream);
+
+  // data: { user: { name: "Ali" } }
+  return (
+    <div>
+      <p>Name: {data?.user?.name}</p>
+      {!isValid && <span>Streaming...</span>}
+    </div>
+  );
+};
+```
+
+### 2. Schema Validation (Zod Support)
+
+The library supports "Duck Typing" for schema validation. You can pass a Zod schema (or any object with a `.safeParse` method) to ensure the streamed data matches your expected type definition.
+
+Note: For streaming data, use `.deepPartial()` as the object is built incrementally.
+
+```javascript
 import { z } from 'zod';
+import { useStreamingJson } from 'react-ai-guard';
 
-// Define your schema
 const UserSchema = z.object({
+  id: z.number(),
   name: z.string(),
-  email: z.string().email(),
-  age: z.number().min(0)
-});
+  role: z.enum(['admin', 'user'])
+}).deepPartial();
 
-function StreamingForm({ rawStream }) {
-  const { data, isValid, schemaErrors } = useStreamingJson(rawStream, {
-    schema: UserSchema.deepPartial(), // ⚠️ IMPORTANT: Use deepPartial()
-    fallback: { name: '', email: '', age: 0 }
+const Dashboard = ({ stream }) => {
+  const { data, isSchemaValid, schemaErrors } = useStreamingJson(stream, { 
+    schema: UserSchema 
   });
 
   return (
     <div>
       <pre>{JSON.stringify(data, null, 2)}</pre>
-      {schemaErrors.map(err => (
-        <p key={err.path} className="error">{err.path}: {err.message}</p>
-      ))}
+      {!isSchemaValid && (
+        <div className="error">
+          Validation Error: {schemaErrors?.[0]?.message}
+        </div>
+      )}
     </div>
   );
-}
+};
 ```
 
-> ⚠️ **Critical: Use `schema.deepPartial()` for streaming**
->
-> During streaming, your JSON is incomplete. A schema like `z.object({ name: z.string() })` 
-> will fail validation on partial chunks like `{"user": {}}` because `name` is missing.
->
-> Always use `.deepPartial()` to make all nested fields optional during streaming,
-> or handle missing fields gracefully in your UI.
+### 3. PII and Secret Detection
 
-**TypeScript Support:**
-
-```tsx
-import { useTypedStream } from 'react-ai-guard';
-import { z } from 'zod';
-
-const ProductSchema = z.object({
-  id: z.string(),
-  price: z.number(),
-  inStock: z.boolean()
-});
-
-type Product = z.infer<typeof ProductSchema>;
-
-function ProductStream({ stream }: { stream: string }) {
-  // Fully typed - data is Product
-  const { data, isValid } = useTypedStream<Product>(
-    stream, 
-    ProductSchema.deepPartial()
-  );
-  
-  return <div>{data.id}: ${data.price}</div>;
-}
-```
-
-### Without React (Pure JavaScript)
+Use the `useAIGuard` hook to validate user input before sending it to an external API. This runs synchronously from the UI perspective but asynchronously on the worker thread.
 
 ```javascript
-import { scan, sanitize, repair, safeParse } from 'react-ai-guard';
+import { useAIGuard } from 'react-ai-guard';
 
-// Scan for PII
-const result = scan('Contact john@example.com or call 555-123-4567');
-console.log(result.sanitized); // "Contact [EMAIL] or call [PHONE]"
+const InputForm = () => {
+  const { scanInput } = useAIGuard({
+    redact: true // Replaces detected entities with [REDACTED]
+  });
 
-// Repair broken JSON
-const fixed = repair('{"name": "John",}');
-console.log(fixed.data); // { name: "John" }
+  const handleSubmit = async (text) => {
+    // Blocks execution if sensitive data is found
+    const result = await scanInput(text);
+
+    if (!result.safe) {
+      console.warn("Blocked PII:", result.findings);
+      alert("Please remove sensitive information.");
+      return;
+    }
+
+    // Proceed with sanitized text
+    await sendToLLM(result.text); 
+  };
+};
 ```
+
+---
+
+## Architecture
+
+This library is designed for high-performance frontend environments.
+
+- **Singleton Worker**: A single Web Worker instance is spawned upon the first hook usage and shared across all components to conserve memory.
+
+- **Message Queue**: Requests are serialized and processed via a promise-based message queue, preventing race conditions during rapid state updates.
+
+- **No External Dependencies**: The core parsing and scanning logic is written in pure JavaScript with zero runtime dependencies.
 
 ---
 
 ## API Reference
 
-### React Hooks
+### useStreamingJson(rawString, options)
 
-#### `useAIGuard(options?)`
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `rawString` | `string` | The raw text chunk received from the LLM stream. |
+| `options.fallback` | `object` | Initial state before parsing begins (default: `{}`). |
+| `options.schema` | `ZodSchema` | Optional schema to validate the parsed data against. |
+| `options.partial` | `boolean` | Allow partial schema matches during streaming (default: `true`). |
 
-Main hook providing all functionality.
+**Returns:**
 
-```typescript
-const {
-  // Scanner
-  scanText,        // (text: string) => Promise<ScanResult>
-  sanitizeText,    // (text: string) => Promise<string>
-  detectPII,       // (text: string) => Promise<boolean>
-  scanBatch,       // (texts: string[]) => Promise<ScanResult[]>
-  
-  // Repair
-  repairJSON,      // (input: string, options?) => Promise<RepairResult>
-  parseJSON,       // (input: string, fallback?) => Promise<any>
-  repairStreamingJSON, // (partial: string) => Promise<RepairResult>
-  
-  // State
-  lastScanResult,  // ScanResult | null
-  lastRepairResult,// RepairResult | null
-  isProcessing,    // boolean
-  error,           // Error | null
-  workerReady,     // boolean
-} = useAIGuard({
-  useWorker: false,     // Use Web Worker for processing
-  rules: {},            // Custom rules to merge with presets
-  only: null,           // Only use these rule types
-  exclude: [],          // Exclude these rule types
-  onPIIDetected: null,  // Callback when PII is detected
-  onRepairComplete: null, // Callback when repair completes
-});
-```
-
-#### `AIGuardProvider`
-
-Context provider for shared configuration.
-
-```jsx
-import { AIGuardProvider, useAIGuardContext } from 'react-ai-guard';
-
-function App() {
-  return (
-    <AIGuardProvider
-      initialConfig={{ exclude: ['ipv4'] }}
-      enabled={true}
-    >
-      <YourApp />
-    </AIGuardProvider>
-  );
-}
-
-function Component() {
-  const { scanner, rules, addRule, removeRule } = useAIGuardContext();
-}
-```
-
-### Core Functions
-
-#### Scanner
-
-```javascript
-import { scan, sanitize, detect, createScanner } from 'react-ai-guard';
-
-// Scan text for PII
-const result = scan('Email: test@example.com');
-// {
-//   original: 'Email: test@example.com',
-//   sanitized: 'Email: [EMAIL]',
-//   matches: [{ type: 'email', value: 'test@example.com', ... }],
-//   hasPII: true,
-//   summary: { email: 1 }
-// }
-
-// Just sanitize
-const clean = sanitize('SSN: 123-45-6789');
-// 'SSN: [SSN]'
-
-// Fast detection
-const hasPII = detect('Hello world'); // false
-
-// Custom scanner
-const scanner = createScanner({
-  only: ['email', 'phone'],
-  exclude: ['ssn'],
-  rules: {
-    customId: {
-      pattern: /ID-\d{6}/g,
-      name: 'Custom ID',
-      replacement: '[CUSTOM_ID]',
-    },
-  },
-});
-```
-
-#### Repair
-
-```javascript
-import { repair, safeParse, validate, extractJSON } from 'react-ai-guard';
-
-// Full repair with details
-const result = repair('{"name": "John",}');
-// {
-//   success: true,
-//   data: { name: 'John' },
-//   repaired: '{"name": "John"}',
-//   original: '{"name": "John",}',
-//   fixes: ['Removed trailing commas'],
-//   error: null
-// }
-
-// Simple safe parse
-const data = safeParse('{broken: "json"}', { default: true });
-// { broken: 'json' } or { default: true } on failure
-
-// Validate JSON
-const { valid, error } = validate('{"test": 1}');
-
-// Extract JSON from text
-const json = extractJSON('Here is the data: ```json\n{"key": "value"}\n```');
-// '{"key": "value"}'
-```
+| Property | Type | Description |
+|----------|------|-------------|
+| `data` | `object` | The repaired, valid JSON object. |
+| `isValid` | `boolean` | Indicates if the current chunk is syntactically valid JSON. |
+| `isSchemaValid` | `boolean` | Indicates if data passes the provided schema. |
+| `schemaErrors` | `array` | Array of error objects returned by the schema validator. |
 
 ---
 
-## Built-in PII Patterns
+### useAIGuard(config)
 
-| Type | Example | Replacement |
-|------|---------|-------------|
-| `email` | john@example.com | `[EMAIL]` |
-| `phone` | 555-123-4567 | `[PHONE]` |
-| `ssn` | 123-45-6789 | `[SSN]` |
-| `creditCard` | 4111111111111111 | `[CREDIT_CARD]` |
-| `ipv4` | 192.168.1.100 | `[IP_ADDRESS]` |
-| `ipv6` | 2001:0db8:85a3:... | `[IP_ADDRESS]` |
-| `apiKey` | sk_live_abc123... | `[API_KEY]` |
-| `awsKey` | AKIAIOSFODNN7... | `[AWS_KEY]` |
-| `jwt` | eyJhbGciOiJIUzI1... | `[JWT]` |
-| `address` | 123 Main St | `[ADDRESS]` |
-| `dob` | 01/15/1990 | `[DOB]` |
-| `passport` | AB1234567 | `[PASSPORT]` |
-| `driversLicense` | D1234567 | `[DRIVERS_LICENSE]` |
-| `sensitiveUrl` | https://...?token=... | `[SENSITIVE_URL]` |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `rules` | `string[]` | All | Array of rule IDs to enable (e.g., `['CREDIT_CARD', 'API_KEY']`). |
+| `redact` | `boolean` | `false` | If true, returns a redacted string instead of just blocking. |
 
-### Adding Custom Rules
+**Returns:**
 
-```javascript
-import { createRule, createScanner } from 'react-ai-guard';
-
-const scanner = createScanner({
-  rules: {
-    employeeId: createRule({
-      pattern: /EMP-\d{8}/g,
-      name: 'Employee ID',
-      replacement: '[EMPLOYEE_ID]',
-    }),
-    internalCode: {
-      pattern: /INTERNAL-[A-Z]{3}-\d{4}/g,
-      name: 'Internal Code',
-      replacement: '[INTERNAL]',
-    },
-  },
-});
-```
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `scanInput` | `(text: string) => Promise<ScanResult>` | Scans text for PII. Returns `{ safe, findings, text }`. |
+| `repairJson` | `(text: string) => Promise<RepairResult>` | Repairs and parses JSON. Returns `{ data, isValid, fixedString }`. |
 
 ---
 
-## JSON Repair Capabilities
+## Supported PII Rules
 
-The repair engine handles common LLM response issues:
+The following patterns are detected by the default engine:
 
-| Issue | Before | After |
-|-------|--------|-------|
-| Trailing commas | `{"a": 1,}` | `{"a": 1}` |
-| Unquoted keys | `{name: "John"}` | `{"name": "John"}` |
-| Single quotes | `{'key': 'value'}` | `{"key": "value"}` |
-| Comments | `{/* comment */ "a": 1}` | `{"a": 1}` |
-| Markdown blocks | `` ```json {...} ``` `` | `{...}` |
-| Missing brackets | `{"a": 1` | `{"a": 1}` |
-| undefined/NaN | `{"a": undefined}` | `{"a": null}` |
-| Truncated streams | `{"items": [{"a": 1}, {"b":` | Best-effort parse |
-
----
-
-## Web Worker Support
-
-For heavy processing, offload work to a Web Worker:
-
-```jsx
-const { scanText, workerReady } = useAIGuard({
-  useWorker: true,
-});
-
-// Wait for worker to initialize
-if (workerReady) {
-  const result = await scanText(largeText);
-}
-```
-
----
-
-## Examples
-
-Run the demo app:
-
-```bash
-cd examples/demo-chat
-npm install
-npm run dev
-```
-
----
-
-## Testing
-
-```bash
-# Run tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-```
+| Rule ID | Description |
+|---------|-------------|
+| `CREDIT_CARD` | Major credit card number formats (Visa, Mastercard, Amex). |
+| `EMAIL` | Standard email address patterns. |
+| `API_KEY` | High-entropy strings resembling API tokens (e.g., `sk-`, `ghp-`). |
+| `SSN` | US Social Security Numbers (XXX-XX-XXXX format). |
+| `IPV4` | IPv4 addresses. |
 
 ---
 
 ## License
 
-MIT © [Your Name]
-
----
-
-## Contributing
-
-PRs welcome! Please ensure tests pass and add tests for new features.
-
-```bash
-# Install dependencies
-npm install
-
-# Run tests in watch mode
-npm test
-
-# Build
-npm run build
-```
+MIT
