@@ -1,0 +1,43 @@
+{
+  "name": "@react-ai-guard/plugin-bert",
+  "version": "1.0.0",
+  "description": "Contextual PII detection using BERT. Catches 'My password is hunter2' that regex misses.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "models"
+  ],
+  "scripts": {
+    "build": "echo 'Build plugin'",
+    "download-model": "node scripts/download-model.js"
+  },
+  "keywords": [
+    "react",
+    "ai",
+    "pii",
+    "bert",
+    "wasm",
+    "onnx",
+    "machine-learning",
+    "privacy"
+  ],
+  "author": "ShyamSathish005",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ShyamSathish005/ai-guard.git",
+    "directory": "packages/plugin-bert"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-ai-guard": ">=1.0.0"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.17.0"
+  }
+}

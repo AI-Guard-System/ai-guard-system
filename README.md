@@ -1,44 +1,33 @@
-# react-ai-guard
+# React AI Guard
 
-**Stop letting LLMs crash your UI. Stop leaking secrets. It is not that hard.**
+> Protect your AI applications from PII leakage and repair malformed JSON from LLM responses.
 
-Most "AI" developers today seem to believe that `JSON.parse()` is a valid strategy for handling streaming text from a Large Language Model. It is not. It is optimistic, fragile, and lazy.
-
-When you pipe raw, non-deterministic output from a chatbot directly into your application state, you are asking for a crash. When you let users paste API keys into a text box without checking them, you are asking for a lawsuit.
-
-This library does two things, and it does them correctly:
-
-1. **It repairs broken JSON streams on the fly** (closing missing brackets, fixing quotes) so your UI doesn't white-screen.
-
-2. **It blocks PII** (secrets, credit cards, emails) in the browser, before the data ever touches the network.
-
-It runs in a Web Worker. It keeps your main thread at 60fps. It has zero dependencies on "cloud guardrails."
+[![npm version](https://img.shields.io/npm/v/react-ai-guard.svg)](https://www.npmjs.com/package/react-ai-guard)
+[![license](https://img.shields.io/npm/l/react-ai-guard.svg)](https://github.com/yourusername/react-ai-guard/blob/main/LICENSE)
 
 ---
 
 ## The Problem
 
-You are building a chat interface. The LLM sends this chunk:
+Building AI-powered applications comes with two painful realities:
 
-```json
-{"user": {"name": "Linus", "role": "admin
-```
+1. **PII Leakage**: Users accidentally (or intentionally) paste sensitive data—emails, SSNs, credit cards, API keys—into your AI chat. That data gets sent to third-party LLMs, logged in your backend, and suddenly you're explaining a data breach to your legal team.
 
-Your app tries to parse it. Crash. `SyntaxError: Unexpected end of JSON input`.
+2. **Broken JSON**: LLMs love to respond with JSON... wrapped in markdown, with trailing commas, unquoted keys, or truncated mid-stream. Your `JSON.parse()` fails, your app crashes, users complain.
 
-So you write a try/catch. Great. Now your UI is frozen until the entire stream finishes. You have defeated the purpose of streaming.
+**React AI Guard solves both.**
 
 ---
 
-## The Solution
+## Features
 
-`react-ai-guard` implements a **Stack-Based Finite State Machine** that tracks depth and context. It knows how to "auto-close" a broken JSON structure at any byte offset. It turns the garbage above into this:
-
-```json
-{"user": {"name": "Linus", "role": "admin"}}
-```
-
-It is O(N). It is fast. It is deterministic.
+✅ **PII Scanner** — Detect 15+ types of sensitive data (emails, phones, SSNs, credit cards, API keys, JWTs, and more)  
+✅ **Auto-Sanitization** — Replace PII with safe placeholders before sending to LLMs  
+✅ **JSON Repair** — Fix malformed LLM responses (trailing commas, comments, markdown blocks, truncated streams)  
+✅ **Web Worker Support** — Offload processing to a worker thread for zero UI lag  
+✅ **React Hooks** — `useAIGuard()` hook for seamless integration  
+✅ **Zero Dependencies** — Pure JavaScript core, works anywhere  
+✅ **TypeScript Ready** — Full type definitions included  
 
 ---
 
@@ -46,76 +35,327 @@ It is O(N). It is fast. It is deterministic.
 
 ```bash
 npm install react-ai-guard
+# or
+yarn add react-ai-guard
+# or
+pnpm add react-ai-guard
 ```
-
-(Or yarn, or pnpm. Just get the package.)
 
 ---
 
-## Usage
+## Quick Start
 
-### 1. The JSON Repair Hook (`useStreamingJson`)
+### PII Scanning
 
-Use this when you are streaming structured data from an LLM.
-
-```javascript
-import { useStreamingJson } from 'react-ai-guard';
-
-const MyComponent = () => {
-  // partialString is the raw, broken text coming from the socket
-  // data is the Safe, Validated Object. It never crashes.
-  const { data } = useStreamingJson(partialString);
-
-  return <div>Hello, {data?.user?.name || 'Loading...'}</div>;
-};
-```
-
-### 2. The Firewall Hook (`useAIGuard`)
-
-Use this to prevent users (or employees) from pasting stupid things into your model.
-
-```javascript
+```jsx
 import { useAIGuard } from 'react-ai-guard';
 
-const ChatInput = () => {
-  const { scanInput } = useAIGuard({
-    rules: ['CREDIT_CARD', 'API_KEY', 'EMAIL'],
-    redact: true // Turns "sk-12345" into "[REDACTED]"
-  });
+function ChatInput() {
+  const { scanText, sanitizeText, detectPII } = useAIGuard();
 
-  const handleSubmit = async (text) => {
-    const check = await scanInput(text);
-    
-    if (!check.safe) {
-      alert("Found sensitive data: " + check.reasons.join(", "));
-      return; // The network request never happens.
+  const handleSubmit = async (message) => {
+    // Quick check
+    if (await detectPII(message)) {
+      alert('Your message contains sensitive information!');
+      return;
     }
-    
-    sendMessage(check.sanitized); // Send the [REDACTED] version
+
+    // Or scan for details
+    const result = await scanText(message);
+    if (result.hasPII) {
+      console.log('Found PII:', result.matches);
+      // Use sanitized version
+      sendToLLM(result.sanitized);
+    }
   };
-};
+
+  return <textarea onSubmit={handleSubmit} />;
+}
+```
+
+### JSON Repair
+
+```jsx
+import { useAIGuard } from 'react-ai-guard';
+
+function AIResponse() {
+  const { repairJSON, parseJSON } = useAIGuard();
+
+  const handleLLMResponse = async (rawResponse) => {
+    // Safe parse with automatic repair
+    const data = await parseJSON(rawResponse, { fallback: {} });
+    
+    // Or get detailed repair info
+    const result = await repairJSON(rawResponse);
+    if (result.success) {
+      console.log('Fixes applied:', result.fixes);
+      console.log('Parsed data:', result.data);
+    }
+  };
+}
+```
+
+### Without React (Pure JavaScript)
+
+```javascript
+import { scan, sanitize, repair, safeParse } from 'react-ai-guard';
+
+// Scan for PII
+const result = scan('Contact john@example.com or call 555-123-4567');
+console.log(result.sanitized); // "Contact [EMAIL] or call [PHONE]"
+
+// Repair broken JSON
+const fixed = repair('{"name": "John",}');
+console.log(fixed.data); // { name: "John" }
 ```
 
 ---
 
-## Architecture (For those who care)
+## API Reference
 
-I refuse to ship a library that blocks the main thread.
+### React Hooks
 
-- **The Engine**: All Regex scanning and JSON parsing happens in a dedicated Web Worker.
-- **The Scanner**: We use strict Regex patterns. No "AI detecting AI." Determinism is the only way to ensure safety.
-- **The Parser**: A custom recursive descent tokenizer. It handles escaped quotes, nested arrays, and trailing commas.
+#### `useAIGuard(options?)`
+
+Main hook providing all functionality.
+
+```typescript
+const {
+  // Scanner
+  scanText,        // (text: string) => Promise<ScanResult>
+  sanitizeText,    // (text: string) => Promise<string>
+  detectPII,       // (text: string) => Promise<boolean>
+  scanBatch,       // (texts: string[]) => Promise<ScanResult[]>
+  
+  // Repair
+  repairJSON,      // (input: string, options?) => Promise<RepairResult>
+  parseJSON,       // (input: string, fallback?) => Promise<any>
+  repairStreamingJSON, // (partial: string) => Promise<RepairResult>
+  
+  // State
+  lastScanResult,  // ScanResult | null
+  lastRepairResult,// RepairResult | null
+  isProcessing,    // boolean
+  error,           // Error | null
+  workerReady,     // boolean
+} = useAIGuard({
+  useWorker: false,     // Use Web Worker for processing
+  rules: {},            // Custom rules to merge with presets
+  only: null,           // Only use these rule types
+  exclude: [],          // Exclude these rule types
+  onPIIDetected: null,  // Callback when PII is detected
+  onRepairComplete: null, // Callback when repair completes
+});
+```
+
+#### `AIGuardProvider`
+
+Context provider for shared configuration.
+
+```jsx
+import { AIGuardProvider, useAIGuardContext } from 'react-ai-guard';
+
+function App() {
+  return (
+    <AIGuardProvider
+      initialConfig={{ exclude: ['ipv4'] }}
+      enabled={true}
+    >
+      <YourApp />
+    </AIGuardProvider>
+  );
+}
+
+function Component() {
+  const { scanner, rules, addRule, removeRule } = useAIGuardContext();
+}
+```
+
+### Core Functions
+
+#### Scanner
+
+```javascript
+import { scan, sanitize, detect, createScanner } from 'react-ai-guard';
+
+// Scan text for PII
+const result = scan('Email: test@example.com');
+// {
+//   original: 'Email: test@example.com',
+//   sanitized: 'Email: [EMAIL]',
+//   matches: [{ type: 'email', value: 'test@example.com', ... }],
+//   hasPII: true,
+//   summary: { email: 1 }
+// }
+
+// Just sanitize
+const clean = sanitize('SSN: 123-45-6789');
+// 'SSN: [SSN]'
+
+// Fast detection
+const hasPII = detect('Hello world'); // false
+
+// Custom scanner
+const scanner = createScanner({
+  only: ['email', 'phone'],
+  exclude: ['ssn'],
+  rules: {
+    customId: {
+      pattern: /ID-\d{6}/g,
+      name: 'Custom ID',
+      replacement: '[CUSTOM_ID]',
+    },
+  },
+});
+```
+
+#### Repair
+
+```javascript
+import { repair, safeParse, validate, extractJSON } from 'react-ai-guard';
+
+// Full repair with details
+const result = repair('{"name": "John",}');
+// {
+//   success: true,
+//   data: { name: 'John' },
+//   repaired: '{"name": "John"}',
+//   original: '{"name": "John",}',
+//   fixes: ['Removed trailing commas'],
+//   error: null
+// }
+
+// Simple safe parse
+const data = safeParse('{broken: "json"}', { default: true });
+// { broken: 'json' } or { default: true } on failure
+
+// Validate JSON
+const { valid, error } = validate('{"test": 1}');
+
+// Extract JSON from text
+const json = extractJSON('Here is the data: ```json\n{"key": "value"}\n```');
+// '{"key": "value"}'
+```
 
 ---
 
-## Contributing
+## Built-in PII Patterns
 
-1. Do not break the build.
-2. Do not add dependencies. I don't want your 50MB "utility" library. Write the code yourself.
-3. Test your code. If you send a PR without a test case for the bug you fixed, I will close it.
+| Type | Example | Replacement |
+|------|---------|-------------|
+| `email` | john@example.com | `[EMAIL]` |
+| `phone` | 555-123-4567 | `[PHONE]` |
+| `ssn` | 123-45-6789 | `[SSN]` |
+| `creditCard` | 4111111111111111 | `[CREDIT_CARD]` |
+| `ipv4` | 192.168.1.100 | `[IP_ADDRESS]` |
+| `ipv6` | 2001:0db8:85a3:... | `[IP_ADDRESS]` |
+| `apiKey` | sk_live_abc123... | `[API_KEY]` |
+| `awsKey` | AKIAIOSFODNN7... | `[AWS_KEY]` |
+| `jwt` | eyJhbGciOiJIUzI1... | `[JWT]` |
+| `address` | 123 Main St | `[ADDRESS]` |
+| `dob` | 01/15/1990 | `[DOB]` |
+| `passport` | AB1234567 | `[PASSPORT]` |
+| `driversLicense` | D1234567 | `[DRIVERS_LICENSE]` |
+| `sensitiveUrl` | https://...?token=... | `[SENSITIVE_URL]` |
+
+### Adding Custom Rules
+
+```javascript
+import { createRule, createScanner } from 'react-ai-guard';
+
+const scanner = createScanner({
+  rules: {
+    employeeId: createRule({
+      pattern: /EMP-\d{8}/g,
+      name: 'Employee ID',
+      replacement: '[EMPLOYEE_ID]',
+    }),
+    internalCode: {
+      pattern: /INTERNAL-[A-Z]{3}-\d{4}/g,
+      name: 'Internal Code',
+      replacement: '[INTERNAL]',
+    },
+  },
+});
+```
+
+---
+
+## JSON Repair Capabilities
+
+The repair engine handles common LLM response issues:
+
+| Issue | Before | After |
+|-------|--------|-------|
+| Trailing commas | `{"a": 1,}` | `{"a": 1}` |
+| Unquoted keys | `{name: "John"}` | `{"name": "John"}` |
+| Single quotes | `{'key': 'value'}` | `{"key": "value"}` |
+| Comments | `{/* comment */ "a": 1}` | `{"a": 1}` |
+| Markdown blocks | `` ```json {...} ``` `` | `{...}` |
+| Missing brackets | `{"a": 1` | `{"a": 1}` |
+| undefined/NaN | `{"a": undefined}` | `{"a": null}` |
+| Truncated streams | `{"items": [{"a": 1}, {"b":` | Best-effort parse |
+
+---
+
+## Web Worker Support
+
+For heavy processing, offload work to a Web Worker:
+
+```jsx
+const { scanText, workerReady } = useAIGuard({
+  useWorker: true,
+});
+
+// Wait for worker to initialize
+if (workerReady) {
+  const result = await scanText(largeText);
+}
+```
+
+---
+
+## Examples
+
+Run the demo app:
+
+```bash
+cd examples/demo-chat
+npm install
+npm run dev
+```
+
+---
+
+## Testing
+
+```bash
+# Run tests
+npm test
+
+# Run with coverage
+npm run test:coverage
+```
 
 ---
 
 ## License
 
-MIT
+MIT © [Your Name]
+
+---
+
+## Contributing
+
+PRs welcome! Please ensure tests pass and add tests for new features.
+
+```bash
+# Install dependencies
+npm install
+
+# Run tests in watch mode
+npm test
+
+# Build
+npm run build
+```
