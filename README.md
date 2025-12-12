@@ -1,5 +1,10 @@
 # react-ai-guard
 
+![Build Status](https://img.shields.io/github/actions/workflow/status/ShyamSathish005/ai-guard/ci.yml?branch=main&style=flat-square&label=Tests)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/react-ai-guard?style=flat-square&label=Size)
+![License](https://img.shields.io/npm/l/react-ai-guard?style=flat-square)
+![NPM Version](https://img.shields.io/npm/v/react-ai-guard?style=flat-square)
+
 Client-side safety layer for Large Language Model (LLM) applications.
 
 A lightweight, zero-dependency React library that ensures application stability and data privacy when integrating with LLMs. It executes entirely within a dedicated Web Worker to maintain 60fps UI performance, regardless of stream volume or validation complexity.
@@ -8,7 +13,7 @@ A lightweight, zero-dependency React library that ensures application stability 
 
 ---
 
-##  Support for Reasoning Models (DeepSeek-R1, o1)
+## Support for Reasoning Models (DeepSeek-R1, o1)
 
 Reasoning models often output `<think>` blocks or Markdown before the actual JSON. `react-ai-guard` automatically strips these and extracts the JSON for you.
 
@@ -37,6 +42,15 @@ Integrating streaming LLM responses into React applications introduces three cri
 *   **Application Crashes**: `JSON.parse()` fails when processing partial or malformed JSON chunks typical of streaming responses. This often leads to white screens or extensive try/catch boilerplate.
 *   **Data Exfiltration**: Users may inadvertently paste sensitive information (PII, API keys) into prompts, which are then sent to third-party model providers.
 *   **Reasoning Model Noise**: Models like DeepSeek-R1 and o1 output `<think>` traces or prose before JSON, breaking naive parsers.
+
+## Why not just use `JSON.parse`?
+
+Reasoning models like **DeepSeek-R1** and **OpenAI o1** are non-deterministic. They output:
+1.  **Thinking Traces:** `<think>...` blocks that break standard parsers.
+2.  **Mixed Modality:** Markdown text interleaved with JSON code blocks.
+3.  **Partial Tokens:** Streams often pause mid-syntax (`{"id": 1, "nam`...).
+
+`react-ai-guard` isn't a "band-aid"; it's a **Stream Normalization Layer**. It standardizes the chaotic output of these models into a reliable, typed object stream that your UI can render safely at 60fps.
 
 ## The Solution
 

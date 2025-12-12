@@ -26,6 +26,11 @@
     "README.md",
     "LICENSE"
   ],
+  "browser": {
+    "fs": false,
+    "path": false,
+    "os": false
+  },
   "scripts": {
     "build": "node scripts/build-worker.js && echo 'Build complete.'",
     "prepublishOnly": "npm run build",

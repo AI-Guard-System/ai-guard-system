@@ -1,31 +1,101 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { scanText } from '../core/scanner.js';
+import { repairJSON, extractJSON } from '../core/repair.js';
 
 // --- GLOBAL SINGLETON SCOPE ---
 let sharedWorker = null;
 let workerScriptUrl = null;
+let fallbackMode = false;
 const pendingRequests = new Map();
 const loadedPluginNames = new Set(); // Track which plugins are loaded globally
 
 // The "Blob" injection happens here in the build step.
 // For dev, we assume this string is injected or loaded.
 // In the final build, this var is populated.
-const INLINE_WORKER_CODE = `/* INJECTED_BY_BUILD_SCRIPT */`; 
+const INLINE_WORKER_CODE = `/* INJECTED_BY_BUILD_SCRIPT */`;
+
+// --- FALLBACK MAIN THREAD IMPLEMENTATION ---
+async function runMainThread(type, payload, options) {
+  if (type === 'SCAN_TEXT') {
+    const scanText_input = typeof payload === 'string' ? payload : payload?.text;
+    const scanText_rules = options?.rules || payload?.enabledRules || [];
+    const scanText_redact = options?.redact ?? payload?.redact ?? false;
+    const scanText_allow = options?.allow || payload?.allow || [];
+    const scanText_customRules = options?.customRules || payload?.customRules || [];
+
+    // Note: Plugins not supported in fallback for now
+    return scanText(scanText_input, scanText_rules, scanText_redact, scanText_allow, scanText_customRules);
+  }
+
+  if (type === 'REPAIR_JSON') {
+    const repair_input = typeof payload === 'string' ? payload : payload?.text;
+    const repair_extract = options?.extract ?? payload?.extract ?? false;
+
+    const repairResult = repairJSON(repair_input, { extract: repair_extract });
+
+    let parsed = repairResult.data;
+    let isValid = true;
+
+    if (parsed === null && repairResult.fixed !== 'null') {
+      try {
+        parsed = JSON.parse(repairResult.fixed);
+      } catch {
+        isValid = false;
+      }
+    }
+
+    return {
+      fixedString: repairResult.fixed,
+      data: parsed,
+      isValid,
+      isPartial: repairResult.isPartial,
+      patches: repairResult.patches,
+      mode: 'main-thread-js'
+    };
+  }
+
+  if (type === 'EXTRACT_JSON') {
+    const extract_input = typeof payload === 'string' ? payload : payload?.text;
+    const extract_last = options?.last ?? payload?.last ?? true;
+    const extracted = extractJSON(extract_input, { last: extract_last });
+    return { extracted };
+  }
+
+  if (type === 'LOAD_PLUGIN' || type === 'LIST_PLUGINS') {
+    return { success: true, warning: 'Plugins not supported in fallback mode' };
+  }
+
+  throw new Error(`Unknown message type: ${type}`);
+}
 
 function getWorker() {
+  if (fallbackMode) return null;
   if (sharedWorker) return sharedWorker;
 
   if (typeof window === 'undefined') return null; // SSR protection
 
   // Create the Blob URL once
   if (!workerScriptUrl && INLINE_WORKER_CODE && INLINE_WORKER_CODE !== '/* INJECTED_BY_BUILD_SCRIPT */') {
-    const blob = new Blob([INLINE_WORKER_CODE], { type: 'application/javascript' });
-    workerScriptUrl = URL.createObjectURL(blob);
+    try {
+      const blob = new Blob([INLINE_WORKER_CODE], { type: 'application/javascript' });
+      workerScriptUrl = URL.createObjectURL(blob);
+    } catch (e) {
+      console.warn("react-ai-guard: Blob creation failed (CSP). Falling back to main thread.");
+      fallbackMode = true;
+      return null;
+    }
   }
 
   // Fallback for dev environment (loading from file)
   const url = workerScriptUrl || new URL('../worker/index.js', import.meta.url);
 
-  sharedWorker = new Worker(url, { type: 'module' });
+  try {
+    sharedWorker = new Worker(url, { type: 'module' });
+  } catch (err) {
+    console.warn("react-ai-guard: Worker creation blocked by CSP. Falling back to main thread.");
+    fallbackMode = true;
+    return null;
+  }
 
   // Global Message Listener
   sharedWorker.onmessage = (e) => {
@@ -60,16 +130,25 @@ export function useAIGuard(config = {}) {
   const pluginsLoadedRef = useRef(false);
 
   const post = useCallback((type, payload, options, timeout = 30000) => {
+    if (fallbackMode) {
+      return runMainThread(type, payload, options);
+    }
+
     const worker = getWorker();
-    if (!worker) return Promise.reject(new Error("Worker not initialized"));
+
+    // Check if getWorker triggered fallbackMode
+    if (fallbackMode || !worker) {
+      if (fallbackMode) return runMainThread(type, payload, options);
+      return Promise.reject(new Error("Worker not initialized"));
+    }
 
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         pendingRequests.delete(id);
-        reject(new Error(`Worker timeout (${timeout/1000}s)`));
+        reject(new Error(`Worker timeout (${timeout / 1000}s)`));
       }, timeout);
-      
+
       pendingRequests.set(id, { resolve, reject, timeout: timeoutId });
       worker.postMessage({ id, type, payload, options });
     });
@@ -78,7 +157,7 @@ export function useAIGuard(config = {}) {
   // Load plugins on mount (only once globally)
   useEffect(() => {
     workerRef.current = getWorker();
-    
+
     const plugins = config.plugins || [];
     if (plugins.length === 0 || pluginsLoadedRef.current) {
       setPluginsReady(true);
@@ -87,17 +166,17 @@ export function useAIGuard(config = {}) {
 
     const loadPlugins = async () => {
       const errors = [];
-      
+
       for (const plugin of plugins) {
         // Plugin can be: { name, url } or { name, module } or a class with static props
-        const pluginConfig = typeof plugin === 'function' 
+        const pluginConfig = typeof plugin === 'function'
           ? { name: plugin.pluginName, url: plugin.pluginUrl, module: plugin }
           : plugin;
-        
+
         if (loadedPluginNames.has(pluginConfig.name)) {
           continue; // Already loaded globally
         }
-        
+
         try {
           // Long timeout for model loading (120s)
           await post('LOAD_PLUGIN', pluginConfig, null, 120000);
@@ -107,7 +186,7 @@ export function useAIGuard(config = {}) {
           console.error(`[react-ai-guard] Failed to load plugin "${pluginConfig.name}":`, err);
         }
       }
-      
+
       pluginsLoadedRef.current = true;
       setPluginErrors(errors);
       setPluginsReady(true);
@@ -118,8 +197,8 @@ export function useAIGuard(config = {}) {
 
   // v1.3.0: Enhanced scanInput with plugin support
   const scanInput = useCallback((text, options = {}) => {
-    return post('SCAN_TEXT', text, { 
-      rules: options.rules || config.rules, 
+    return post('SCAN_TEXT', text, {
+      rules: options.rules || config.rules,
       redact: options.redact || config.redact,
       allow: options.allow || config.allow || [],
       customRules: options.customRules || config.customRules || [],
@@ -157,9 +236,9 @@ export function useAIGuard(config = {}) {
     return post('LIST_PLUGINS', null);
   }, [post]);
 
-  return { 
-    scanInput, 
-    repairJson, 
+  return {
+    scanInput,
+    repairJson,
     extractJson,
     // Plugin API
     loadPlugin,
