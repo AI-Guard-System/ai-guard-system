@@ -1,43 +1,16 @@
 {
-  "name": "react-ai-guard",
-  "version": "1.1.1",
-  "description": "Zero-latency AI Guardrails for React. Blocks PII and repairs broken JSON streams in the browser.",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": "./dist/index.js"
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
+  "name": "react-ai-guard-monorepo",
+  "private": true,
   "scripts": {
-    "build": "node scripts/build-worker.js && echo 'Build complete.'",
-    "prepublishOnly": "npm run build",
-    "test": "vitest",
-    "test:run": "vitest run"
-  },
-  "keywords": [
-    "react",
-    "ai",
-    "llm",
-    "json-repair",
-    "guardrails",
-    "pii-stripping",
-    "security"
-  ],
-  "author": "ShyamSathish005",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ShyamSathish005/react-ai-guard.git"
-  },
-  "peerDependencies": {
-    "react": ">=16.8.0"
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "publish:all": "pnpm -r publish --access public"
   },
   "devDependencies": {
-    "vitest": "^1.2.1"
+    "pnpm": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=8"
   }
 }

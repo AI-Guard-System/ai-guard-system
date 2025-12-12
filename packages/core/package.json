@@ -1,0 +1,49 @@
+{
+  "name": "react-ai-guard",
+  "version": "1.3.0",
+  "description": "Zero-latency AI Guardrails for React. Blocks PII, repairs broken JSON streams, extracts from reasoning traces—all in the browser. Plugin system for AI-powered detection.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/build-worker.js && echo 'Build complete.'",
+    "prepublishOnly": "npm run build",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "keywords": [
+    "react",
+    "ai",
+    "llm",
+    "json-repair",
+    "guardrails",
+    "pii-stripping",
+    "security",
+    "deepseek",
+    "reasoning-models",
+    "vercel-ai-sdk",
+    "prompt-injection",
+    "plugins"
+  ],
+  "author": "ShyamSathish005",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ShyamSathish005/react-ai-guard.git",
+    "directory": "packages/core"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0"
+  },
+  "devDependencies": {
+    "vitest": "^1.2.1"
+  }
+}
