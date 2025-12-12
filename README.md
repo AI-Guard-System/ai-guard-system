@@ -95,6 +95,71 @@ function AIResponse() {
 }
 ```
 
+### Streaming JSON with Schema Validation (v1.1.0+)
+
+Use `useStreamingJson` with Zod schemas for real-time validation of LLM streams:
+
+```jsx
+import { useStreamingJson } from 'react-ai-guard';
+import { z } from 'zod';
+
+// Define your schema
+const UserSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+  age: z.number().min(0)
+});
+
+function StreamingForm({ rawStream }) {
+  const { data, isValid, schemaErrors } = useStreamingJson(rawStream, {
+    schema: UserSchema.deepPartial(), // ⚠️ IMPORTANT: Use deepPartial()
+    fallback: { name: '', email: '', age: 0 }
+  });
+
+  return (
+    <div>
+      <pre>{JSON.stringify(data, null, 2)}</pre>
+      {schemaErrors.map(err => (
+        <p key={err.path} className="error">{err.path}: {err.message}</p>
+      ))}
+    </div>
+  );
+}
+```
+
+> ⚠️ **Critical: Use `schema.deepPartial()` for streaming**
+>
+> During streaming, your JSON is incomplete. A schema like `z.object({ name: z.string() })` 
+> will fail validation on partial chunks like `{"user": {}}` because `name` is missing.
+>
+> Always use `.deepPartial()` to make all nested fields optional during streaming,
+> or handle missing fields gracefully in your UI.
+
+**TypeScript Support:**
+
+```tsx
+import { useTypedStream } from 'react-ai-guard';
+import { z } from 'zod';
+
+const ProductSchema = z.object({
+  id: z.string(),
+  price: z.number(),
+  inStock: z.boolean()
+});
+
+type Product = z.infer<typeof ProductSchema>;
+
+function ProductStream({ stream }: { stream: string }) {
+  // Fully typed - data is Product
+  const { data, isValid } = useTypedStream<Product>(
+    stream, 
+    ProductSchema.deepPartial()
+  );
+  
+  return <div>{data.id}: ${data.price}</div>;
+}
+```
+
 ### Without React (Pure JavaScript)
 
 ```javascript

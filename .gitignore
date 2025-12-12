@@ -10,7 +10,7 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 
-# Build Artifacts (We do NOT commit these to Git)
+# Build Artifacts 
 dist/
 build/
 *.tsbuildinfo
@@ -31,4 +31,5 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-*.tgz
+
+

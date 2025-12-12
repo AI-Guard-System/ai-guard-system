@@ -53,8 +53,13 @@ export function useStreamingJson(rawString, options = {}) {
           let errors = [];
           let schemaValid = true;
           
-          // Schema validation if provided
-          if (schema && typeof schema.safeParse === 'function') {
+          // Duck-type check: does schema have safeParse? Then it's Zod-like.
+          // Runs on every chunk — this is intentional for real-time validation UX.
+          const shouldValidateSchema = schema && 
+            typeof schema.safeParse === 'function' && 
+            result.isValid;
+          
+          if (shouldValidateSchema) {
             try {
               const parseResult = schema.safeParse(result.data);
               
@@ -86,6 +91,9 @@ export function useStreamingJson(rawString, options = {}) {
               errors = [{ path: '', message: schemaError.message, code: 'schema_error' }];
               schemaValid = false;
             }
+          } else if (schema && !result.isValid) {
+            // JSON still streaming, skip schema validation but mark as incomplete
+            schemaValid = false;
           }
           
           setData(validatedData);
