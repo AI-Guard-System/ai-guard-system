@@ -12,17 +12,19 @@ import { useAIGuard } from './useAIGuard.js';
  * @param {any} options.fallback - Initial state while loading (default: {})
  * @param {import('zod').ZodSchema} options.schema - Zod schema for validation (optional)
  * @param {boolean} options.partial - Allow partial matches during streaming (default: true)
+ * @param {number} options.debounceMs - Optional debounce to reduce worker chatter (default: 0)
  */
 export function useStreamingJson(rawString, options = {}) {
   // Backwards compatibility: if options is a plain object without our keys, treat as fallback
   const isOptionsObject = options && (
-    'fallback' in options || 'schema' in options || 'partial' in options
+    'fallback' in options || 'schema' in options || 'partial' in options || 'debounceMs' in options
   );
   
   const { 
     fallback = isOptionsObject ? {} : options, 
     schema = null, 
-    partial = true 
+    partial = true,
+    debounceMs = 0
   } = isOptionsObject ? options : {};
   
   const [data, setData] = useState(fallback);
@@ -33,6 +35,7 @@ export function useStreamingJson(rawString, options = {}) {
   
   // Track the latest request to discard stale responses
   const requestIdRef = useRef(0);
+  const debounceRef = useRef(null);
 
   useEffect(() => {
     if (!rawString) return;
@@ -105,9 +108,24 @@ export function useStreamingJson(rawString, options = {}) {
         }
       }
     };
+    // Debounce to avoid flooding the worker on high-frequency streams
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
 
-    process();
-  }, [rawString, repairJson, schema, partial]);
+    if (debounceMs > 0) {
+      debounceRef.current = setTimeout(process, debounceMs);
+    } else {
+      process();
+    }
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+    };
+  }, [rawString, repairJson, schema, partial, debounceMs]);
 
   return { 
     data, 
