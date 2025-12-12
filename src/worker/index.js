@@ -24,20 +24,21 @@ self.onmessage = (e) => {
         const repair_input = typeof payload === 'string' ? payload : payload?.text;
         const fixed = repairJSON(repair_input);
         
-        // Try to parse it to confirm validity
+        // isValid = true if repaired JSON parses successfully
+        // This will be true for every chunk (that's the point of repair)
+        // Zod runs frequently — this is GOOD for streaming UX
         let isValid = false;
         let parsed = null;
         try {
           parsed = JSON.parse(fixed);
           isValid = true;
-        } catch (err) {
-          // If even our repair failed, we return the best effort string
+        } catch {
           isValid = false;
         }
 
         result = {
-          raw: fixed,        // For new API
-          fixedString: fixed, // For backwards compat
+          raw: fixed,
+          fixedString: fixed,
           data: parsed,
           isValid
         };
