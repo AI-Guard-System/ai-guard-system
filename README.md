@@ -187,6 +187,17 @@ The following patterns are detected by the default engine:
 
 ---
 
+## Demo
+### Feature 1: Auto-Repairing Broken Streams
+Standard `JSON.parse` crashes when the stream cuts off. We fix it in real-time.
+
+<video src="https://github.com/user-attachments/assets/80ce21fb-8017-4c48-b803-1813fcc1c369" controls="false" autoplay="true" loop="true" width="100%"></video>
+
+
+
+
+
+
 ## License
 
 MIT
