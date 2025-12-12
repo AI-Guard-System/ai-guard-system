@@ -8,7 +8,7 @@ A lightweight, zero-dependency React library that ensures application stability 
 
 ---
 
-## 🤖 Support for Reasoning Models (DeepSeek-R1, o1)
+##   Support for Reasoning Models (DeepSeek-R1, o1)
 
 Reasoning models often output `<think>` blocks or Markdown before the actual JSON. `react-ai-guard` automatically strips these and extracts the JSON for you.
 

@@ -1,0 +1,38 @@
+name: Bug Report
+description: File a bug report for react-ai-guard
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please verify you are on v1.4.0+.
+  - type: input
+    id: version
+    attributes:
+      label: Library Version
+      placeholder: v1.4.0
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: AI Model
+      options:
+        - DeepSeek-R1
+        - OpenAI o1
+        - GPT-4 / Claude
+        - Local LLaMA / Ollama
+        - Other
+  - type: textarea
+    id: input
+    attributes:
+      label: The Broken Stream (Input)
+      description: Paste the raw string that caused the crash.
+      placeholder: '{"data": [1, 2'
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console Logs / Error Message
+    validations:
+      required: false

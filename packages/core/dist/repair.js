@@ -49,8 +49,9 @@ export function extractJSON(text, options = {}) {
 
   // Step 1: Remove <think>...</think> reasoning traces (DeepSeek-R1, o1-style)
   // Handle both complete and partial (unclosed) think tags
-  clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, ''); // Lazy match
   clean = clean.replace(/<think>[\s\S]*$/gi, ''); // Partial unclosed tag
+  clean = clean.replace(/<\/th$/gi, ''); // Swallow partial closing tag specific to "Start of </think>" edge case
 
   // Step 2: Extract from markdown code blocks first (highest priority)
   const codeBlockRegex = /```(?:json|json5|javascript|js)?\s*([\s\S]*?)(?:```|$)/gi;
