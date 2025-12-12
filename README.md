@@ -4,7 +4,7 @@ Client-side safety layer for Large Language Model (LLM) applications.
 
 A lightweight, zero-dependency React library that ensures application stability and data privacy when integrating with LLMs. It executes entirely within a dedicated Web Worker to maintain 60fps UI performance, regardless of stream volume or validation complexity.
 
-**v1.2.0**: Now with reasoning model support (DeepSeek-R1, o1) and Vercel AI SDK integration.
+**v1.3.0**: Now with reasoning model support (DeepSeek-R1, o1) and Vercel AI SDK integration.
 
 ---
 
@@ -49,6 +49,22 @@ graph LR
 - **Message Queue**: Promise-based queue preventing race conditions
 - **SSR Safe**: Hydration-safe hooks with server fallbacks
 - **Zero Dependencies**: Pure JavaScript, no runtime deps
+
+### Hybrid Build Architecture
+
+v1.3.0 introduces a dual-strategy build system:
+
+```mermaid
+graph TD
+    Build[Source Code] -->|Tree Shake| Pure[useAIGuard.js (7KB)]
+    Build -->|Compile C| Pro[useAIGuardPro.js (11KB)]
+    
+    Pure -->|Default| Browser[Lightweight Client]
+    Pro -->|Heavy Data| PowerUser[Data Intensive App]
+```
+
+- **Default (Pure JS)**: Standard Bundle. Fast, easy debugging, no Wasm overhead.
+- **Pro (C/Wasm)**: High-performance kernel for massive streams (>1MB/s). Opt-in via `import .../useAIGuardPro`.
 
 ---
 
@@ -323,4 +339,3 @@ const result = scanText('Email: test@example.com', ['EMAIL']);
 ## License
 
 MIT
-
