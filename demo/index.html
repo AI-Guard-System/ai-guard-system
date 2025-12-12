@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>react-ai-guard Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { color: #00d9ff; }
+    h2 { color: #ff6b6b; margin-top: 40px; }
+    .card {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      border: 1px solid #0f3460;
+    }
+    button {
+      background: #00d9ff;
+      color: #1a1a2e;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover { background: #00b8d4; }
+    button.danger { background: #ff6b6b; }
+    pre {
+      background: #0f0f23;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 14px;
+    }
+    .status { 
+      padding: 8px 16px; 
+      border-radius: 4px; 
+      display: inline-block;
+      margin: 10px 0;
+    }
+    .status.ready { background: #2ecc71; color: #000; }
+    .status.error { background: #e74c3c; }
+    .status.waiting { background: #f39c12; color: #000; }
+    #streamOutput { 
+      font-family: monospace; 
+      min-height: 100px;
+      white-space: pre-wrap;
+    }
+    .log { 
+      font-size: 12px; 
+      color: #888; 
+      margin-top: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🛡️ react-ai-guard Demo</h1>
+  <p>Testing the Worker blob inline approach. Open DevTools Console to check for errors.</p>
+
+  <div class="card">
+    <h2>1. Worker Status</h2>
+    <div id="workerStatus" class="status waiting">Initializing...</div>
+    <div class="log" id="workerLog"></div>
+  </div>
+
+  <div class="card">
+    <h2>2. JSON Repair Test</h2>
+    <p>Simulates a streaming LLM response that gets cut off mid-JSON.</p>
+    <button onclick="testJsonRepair()">▶ Run Streaming Simulation</button>
+    <button onclick="testMarkdownStrip()" class="danger">▶ Test Markdown Strip</button>
+    <pre id="streamOutput">Click to start...</pre>
+  </div>
+
+  <div class="card">
+    <h2>3. PII Scanner Test</h2>
+    <p>Tests detection of credit cards, emails, SSNs, API keys.</p>
+    <button onclick="testPiiScanner()">🔍 Scan for PII</button>
+    <pre id="piiOutput">Click to test...</pre>
+  </div>
+
+  <script>
+    // ============================================
+    // INLINE THE WORKER CODE (copy from dist)
+    // ============================================
+    const WORKER_SOURCE = `
+// --- scanner.js ---
+const PATTERNS = {
+  CREDIT_CARD: /\\b(?:\\d[ -]*?){13,16}\\b/g,
+  EMAIL: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g,
+  API_KEY: /(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?token)[\\s:="']+([a-zA-Z0-9_\\-]{20,})/gi,
+  SSN: /\\b\\d{3}[- ]?\\d{2}[- ]?\\d{4}\\b/g,
+  IPV4: /\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b/g
+};
+
+function scanText(text, enabledRules = null, redact = false) {
+  if (!text || typeof text !== 'string') {
+    return { safe: true, findings: [], text };
+  }
+  const rulesToCheck = enabledRules || Object.keys(PATTERNS);
+  const findings = [];
+  let processedText = text;
+  for (const rule of rulesToCheck) {
+    const pattern = PATTERNS[rule];
+    if (!pattern) continue;
+    const regex = new RegExp(pattern.source, pattern.flags);
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      findings.push({
+        type: rule,
+        match: match[0],
+        index: match.index
+      });
+    }
+    if (redact) {
+      processedText = processedText.replace(pattern, '[REDACTED]');
+    }
+  }
+  return {
+    safe: findings.length === 0,
+    findings,
+    text: redact ? processedText : text
+  };
+}
+
+// --- repair.js ---
+function stripMarkdown(text) {
+  if (!text) return "";
+  let clean = text.trim();
+  const startPattern = /^\\\`\\\`\\\`(?:json|json5|text)?\\s*/i;
+  if (startPattern.test(clean)) {
+    clean = clean.replace(startPattern, "");
+  }
+  const endPattern = /\\s*\\\`\\\`\\\`$/;
+  if (endPattern.test(clean)) {
+    clean = clean.replace(endPattern, "");
+  }
+  return clean;
+}
+
+function repairJSON(raw) {
+  const text = stripMarkdown(raw);
+  if (!text || !text.trim()) return "{}";
+  let result = text.trim();
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < result.length; i++) {
+    const char = result[i];
+    if (escaped) { escaped = false; continue; }
+    if (char === '\\\\' && inString) { escaped = true; continue; }
+    if (char === '"' && !escaped) {
+      inString = !inString;
+      if (inString) { stack.push('"'); }
+      else { if (stack.length > 0 && stack[stack.length - 1] === '"') { stack.pop(); } }
+      continue;
+    }
+    if (inString) continue;
+    if (char === '{') { stack.push('{'); }
+    else if (char === '[') { stack.push('['); }
+    else if (char === '}') { if (stack.length > 0 && stack[stack.length - 1] === '{') { stack.pop(); } }
+    else if (char === ']') { if (stack.length > 0 && stack[stack.length - 1] === '[') { stack.pop(); } }
+  }
+  if (inString) {
+    result += '"';
+    if (stack.length > 0 && stack[stack.length - 1] === '"') { stack.pop(); }
+  }
+  result = result.replace(/,\\s*$/, '');
+  while (stack.length > 0) {
+    const open = stack.pop();
+    if (open === '{') { result += '}'; }
+    else if (open === '[') { result += ']'; }
+  }
+  return result;
+}
+
+// --- worker entry ---
+self.onmessage = function(event) {
+  const { id, type, payload } = event.data;
+  let result;
+  if (type === 'SCAN_TEXT') {
+    result = scanText(payload.text, payload.enabledRules, payload.redact);
+  } else if (type === 'REPAIR_JSON') {
+    const repaired = repairJSON(payload.text);
+    let data = null;
+    let isValid = false;
+    try {
+      data = JSON.parse(repaired);
+      isValid = true;
+    } catch (e) {
+      data = {};
+      isValid = false;
+    }
+    result = { raw: repaired, data, isValid };
+  }
+  self.postMessage({ id, type, payload: result });
+};
+    `;
+
+    // Create worker from blob
+    let worker = null;
+    const pendingRequests = new Map();
+
+    function log(msg) {
+      const el = document.getElementById('workerLog');
+      el.innerHTML += new Date().toISOString().substr(11, 8) + ' ' + msg + '\\n';
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function initWorker() {
+      try {
+        const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
+        worker = new Worker(URL.createObjectURL(blob));
+        
+        worker.onmessage = (event) => {
+          const { id, payload } = event.data;
+          const resolver = pendingRequests.get(id);
+          if (resolver) {
+            resolver(payload);
+            pendingRequests.delete(id);
+          }
+        };
+
+        worker.onerror = (err) => {
+          console.error('Worker error:', err);
+          document.getElementById('workerStatus').className = 'status error';
+          document.getElementById('workerStatus').textContent = 'ERROR: ' + err.message;
+          log('❌ Worker error: ' + err.message);
+        };
+
+        document.getElementById('workerStatus').className = 'status ready';
+        document.getElementById('workerStatus').textContent = '✓ Worker Ready';
+        log('✓ Worker blob created and initialized');
+        
+      } catch (err) {
+        console.error('Failed to create worker:', err);
+        document.getElementById('workerStatus').className = 'status error';
+        document.getElementById('workerStatus').textContent = 'FAILED: ' + err.message;
+        log('❌ Failed: ' + err.message);
+      }
+    }
+
+    function sendToWorker(type, payload) {
+      return new Promise((resolve) => {
+        const id = crypto.randomUUID();
+        pendingRequests.set(id, resolve);
+        worker.postMessage({ id, type, payload });
+      });
+    }
+
+    // ============================================
+    // TEST: JSON Repair with Streaming Simulation
+    // ============================================
+    async function testJsonRepair() {
+      const output = document.getElementById('streamOutput');
+      output.textContent = 'Starting stream simulation...\\n';
+
+      // Simulate a broken stream that arrives in chunks
+      const fullJson = '{"user": {"name": "Alice", "age": 30}, "items": ["a", "b", "c"]}';
+      const chunks = [
+        '{"user": {"na',           // Cut mid-key
+        '{"user": {"name": "Ali',   // Cut mid-value  
+        '{"user": {"name": "Alice", "age": 30}, "items": ["a", "b"',  // Cut mid-array
+        fullJson                    // Complete
+      ];
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        output.textContent += `\\n--- Chunk ${i + 1} (raw) ---\\n${chunk}\\n`;
+        
+        const result = await sendToWorker('REPAIR_JSON', { text: chunk });
+        
+        output.textContent += `--- Repaired ---\\n${result.raw}\\n`;
+        output.textContent += `--- Parsed (isValid: ${result.isValid}) ---\\n${JSON.stringify(result.data, null, 2)}\\n`;
+        
+        await new Promise(r => setTimeout(r, 500)); // Simulate network delay
+      }
+
+      output.textContent += '\\n✓ Stream simulation complete!';
+      log('✓ JSON repair test completed');
+    }
+
+    // ============================================
+    // TEST: Markdown Stripping
+    // ============================================
+    async function testMarkdownStrip() {
+      const output = document.getElementById('streamOutput');
+      output.textContent = 'Testing markdown code block stripping...\\n';
+
+      const testCases = [
+        '```json\\n{"foo": "bar"}\\n```',
+        '```\\n{"partial": true',
+        '```json\\n{"name": "test"}'  // No closing ```
+      ];
+
+      for (const test of testCases) {
+        output.textContent += `\\n--- Input ---\\n${test}\\n`;
+        const result = await sendToWorker('REPAIR_JSON', { text: test });
+        output.textContent += `--- Output ---\\n${result.raw}\\n`;
+        output.textContent += `--- Data ---\\n${JSON.stringify(result.data)}\\n`;
+      }
+
+      log('✓ Markdown strip test completed');
+    }
+
+    // ============================================
+    // TEST: PII Scanner
+    // ============================================
+    async function testPiiScanner() {
+      const output = document.getElementById('piiOutput');
+      
+      const testText = `
+        Contact john.doe@example.com for support.
+        Payment card: 4111-1111-1111-1111
+        SSN: 123-45-6789
+        API_KEY: sk-test_FAKE_KEY_FOR_DEMO_1234567890
+        Server IP: 192.168.1.100
+      `;
+
+      output.textContent = 'Scanning for PII...\\n\\nInput:\\n' + testText + '\\n';
+
+      // Test without redaction
+      const result1 = await sendToWorker('SCAN_TEXT', { text: testText, redact: false });
+      output.textContent += '\\n--- Findings ---\\n';
+      output.textContent += `Safe: ${result1.safe}\\n`;
+      output.textContent += `Found ${result1.findings.length} PII items:\\n`;
+      result1.findings.forEach(f => {
+        output.textContent += `  • ${f.type}: "${f.match}"\\n`;
+      });
+
+      // Test with redaction
+      const result2 = await sendToWorker('SCAN_TEXT', { text: testText, redact: true });
+      output.textContent += '\\n--- Redacted Output ---\\n' + result2.text;
+
+      log('✓ PII scanner test completed');
+      
+      if (!result1.safe) {
+        alert('⚠️ PII DETECTED!\\n\\nFound ' + result1.findings.length + ' items:\\n' + 
+          result1.findings.map(f => f.type + ': ' + f.match).join('\\n'));
+      }
+    }
+
+    // Initialize on load
+    initWorker();
+  </script>
+</body>
+</html>
