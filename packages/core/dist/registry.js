@@ -12,7 +12,10 @@ const DEFAULT_PROFILE = {
         // Standard Markdown Code Block Stripper
         (text) => text.replace(/^```[a-z]*\s*/i, "").replace(/\s*```$/, ""),
         // DeepSeek/Reasoning Model <think> Stripper (Handles unclosed tags)
-        (text) => text.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/gi, "")
+        (text) => text
+            .replace(/<think>[\s\S]*?<\/think>/gi, "")
+            .replace(/<think>[\s\S]*$/gi, "")
+            .replace(/<\/th$/gi, "")
     ]
 };
 

@@ -1,6 +1,6 @@
 {
   "name": "react-ai-guard",
-  "version": "1.4.0",
+  "version": "1.5.0-beta.1",
   "description": "Zero-latency AI Guardrails for React. Blocks PII, repairs broken JSON streams, extracts from reasoning traces—all in the browser. Plugin system for AI-powered detection.",
   "type": "module",
   "main": "./dist/index.js",
@@ -59,10 +59,12 @@
     "directory": "packages/core"
   },
   "peerDependencies": {
-    "react": ">=16.8.0"
+    "react": ">=16.8.0",
+    "zod": "^3.0.0"
   },
   "devDependencies": {
     "esbuild": "^0.27.1",
-    "vitest": "^1.2.1"
+    "vitest": "^1.2.1",
+    "zod": "^3.23.0"
   }
 }

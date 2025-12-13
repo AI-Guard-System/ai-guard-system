@@ -1,84 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { useStreamingJson, useAIGuard } from 'react-ai-guard';
+import React from 'react';
+import { useGuard } from 'react-ai-guard';
+import { z } from 'zod';
 
-const BROKEN_STREAM_CHUNKS = [
-  '{"user": {"na',
-  'me": "Ali", "ro',
-  'le": "admin", ',
-  '"bi',
-  'o": "He loves AI"}}'
-];
+const UserSchema = z.object({ name: z.string() });
 
-function App() {
-  const [input, setInput] = useState('');
-  const [stream, setStream] = useState('');
-  const { data, isValid } = useStreamingJson(stream);
-  const { scanInput } = useAIGuard({ redact: true });
-  const [piiResult, setPiiResult] = useState(null);
+// Mock a "hacked" stream
+// The LLM "hallucinates" or a malicious user injects 'admin_access'
+const maliciousStream = '{"name": "Linus", "admin_access": true}';
 
-  const handleScan = async () => {
-    const result = await scanInput(input);
-    setPiiResult(result);
-  };
-
-  const runStream = () => {
-    setStream('');
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < BROKEN_STREAM_CHUNKS.length) {
-        setStream(prev => prev + BROKEN_STREAM_CHUNKS[i]);
-        i++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 500);
-  };
+export default function App() {
+  const { data, metrics } = useGuard(maliciousStream, {
+    schema: UserSchema,
+    onUnknownKey: 'strip' // <--- The feature we just built
+  });
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>react-ai-guard Demo</h1>
+    <div style={{ padding: '2rem', fontFamily: 'monospace' }}>
+      <h1>The Hallucination Proof</h1>
+      <p>
+        <strong>Goal:</strong> The field <code>admin_access</code> MUST NOT appear below.
+      </p>
 
-      <section style={{ marginBottom: '2rem', border: '1px solid #ccc', padding: '1rem', borderRadius: '8px' }}>
-        <h2>1. PII Guard Defense</h2>
-        <p>Type sensitive data (e.g. email, or API key like 'sk-...') to see the guard in action.</p>
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Enter text with PII..."
-          rows={3}
-          style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem' }}
-        />
-        <button onClick={handleScan} style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}>Scan Input</button>
-        {piiResult && (
-          <div style={{ marginTop: '1rem', background: '#f5f5f5', padding: '1rem', borderRadius: '4px' }}>
-            <p><strong>Safe:</strong> {piiResult.safe ? '✅ Yes' : '❌ No'}</p>
-            {!piiResult.safe && <p><strong>Findings:</strong> {JSON.stringify(piiResult.findings)}</p>}
-            <p><strong>Redacted Output:</strong></p>
-            <pre style={{ background: '#eee', padding: '0.5rem' }}>{piiResult.text}</pre>
-          </div>
-        )}
-      </section>
+      <div style={{ background: '#f0f0f0', padding: '1rem', borderRadius: '8px' }}>
+        <h3>Rendered Data:</h3>
+        <pre style={{ color: data.admin_access ? 'red' : 'green', fontWeight: 'bold' }}>
+          {/* If "admin_access" shows up here, the library is broken. */}
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      </div>
 
-      <section style={{ border: '1px solid #ccc', padding: '1rem', borderRadius: '8px' }}>
-        <h2>2. Streaming JSON Repair</h2>
-        <p>Simulates a broken JSON stream from an LLM.</p>
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-          <button onClick={runStream} style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}>Start Simulation</button>
-        </div>
-
-        <div style={{ background: '#333', color: '#fff', padding: '1rem', borderRadius: '4px', marginBottom: '1rem' }}>
-          <strong>Raw Stream:</strong><br />
-          <code style={{ wordBreak: 'break-all' }}>{stream}</code>
-        </div>
-
-        <div style={{ background: '#e0f7fa', padding: '1rem', borderRadius: '4px', border: '1px solid #b2ebf2' }}>
-          <strong>Live Parsed Object (useStreamingJson):</strong>
-          <pre style={{ margin: '0.5rem 0' }}>{JSON.stringify(data, null, 2)}</pre>
-          <small>Valid JSON: {isValid ? 'Yes' : 'No'}</small>
-        </div>
-      </section>
+      <div style={{ marginTop: '1rem' }}>
+        <h3>Metrics:</h3>
+        <ul>
+          <li>Valid: {metrics.isValid.toString()}</li>
+          <li>Partial: {metrics.isPartial.toString()}</li>
+        </ul>
+      </div>
     </div>
   );
 }
-
-export default App;

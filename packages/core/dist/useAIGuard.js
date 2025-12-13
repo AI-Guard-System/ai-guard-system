@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { scanText } from '../core/scanner.js';
-import { repairJSON, extractJSON } from '../core/repair.js';
+import { scanText } from './scanner.js';
+import { repairJSON, extractJSON } from './repair.js';
 
 // --- GLOBAL SINGLETON SCOPE ---
 let sharedWorker = null;

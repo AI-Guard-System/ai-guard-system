@@ -7,8 +7,10 @@
 
 // The Core Hooks
 export { useAIGuard } from './react/useAIGuard.js';
+export { useGuard } from './react/useGuard.js';
 export { useStreamingJson, useTypedStream, useVercelStream } from './react/useStreamingJson.js';
 
 // Core Utilities (for power users and non-React environments)
+export { SchemaEngine } from './schema/SchemaEngine.js';
 export { scanText } from './core/scanner.js';
 export { repairJSON, extractJSON } from './core/repair.js';

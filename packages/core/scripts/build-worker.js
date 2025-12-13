@@ -2,13 +2,22 @@ import * as esbuild from 'esbuild';
 import fs from 'fs';
 import path from 'path';
 
+function fixImports(content) {
+  return content
+    // Replace ../core/, ../schema/, ../react/ with ./
+    .replace(/from\s+['"]\.\.\/(core|schema|react)\/([^'"]+)['"]/g, "from './$2'")
+    // Handle specific file imports that might not match the general regex due to extensions or specific paths
+    .replace(/from\s+['"]\.\.\/core\/scanner\.js['"]/g, "from './scanner.js'")
+    .replace(/from\s+['"]\.\.\/schema\/SchemaEngine\.js['"]/g, "from './SchemaEngine.js'")
+    // Ensure we don't break relative imports that are already local (unlikely in this flat structure but good practice)
+    ;
+}
+
 async function build() {
   console.log("⚡ Compiling Worker with esbuild...");
   if (!fs.existsSync('dist')) fs.mkdirSync('dist');
 
   // 1. Build Pure JS Worker (Default)
-  // We mark the Wasm module as 'external' to prevent bundling it.
-  // Since the code path is guarded by WASM_ENABLED=false, the import will never execute.
   console.log("   - Building Pure JS Worker (Default)...");
   await esbuild.build({
     entryPoints: ['src/worker/index.js'],
@@ -39,13 +48,17 @@ async function build() {
   // 4. Inject Pro Worker into useAIGuardPro.js (Opt-in)
   injectWorker('dist/worker.pro.bundle.js', 'src/react/useAIGuard.js', 'dist/useAIGuardPro.js');
 
-  // Copy other files
-  copyFile('src/react/useStreamingJson.js', 'dist/useStreamingJson.js');
-  copyFile('src/core/scanner.js', 'dist/scanner.js');
-  copyFile('src/core/repair.js', 'dist/repair.js');
-  copyFile('src/core/registry.js', 'dist/registry.js');
+  // 5. Copy & Fix other source files
+  copyAndFix('src/react/useStreamingJson.js', 'dist/useStreamingJson.js');
+  copyAndFix('src/core/scanner.js', 'dist/scanner.js');
+  copyAndFix('src/core/repair.js', 'dist/repair.js');
+  copyAndFix('src/core/registry.js', 'dist/registry.js');
 
-  // Generate Entry Points
+  // NEW: Feature files
+  copyAndFix('src/react/useGuard.js', 'dist/useGuard.js');
+  copyAndFix('src/schema/SchemaEngine.js', 'dist/SchemaEngine.js');
+
+  // 6. Generate Entry Points
   const indexContent = `/**
  * react-ai-guard (Standard)
  * Pure JS Bundle (Default)
@@ -55,6 +68,9 @@ export { useStreamingJson, useTypedStream, useVercelStream } from './useStreamin
 export { scanText } from './scanner.js';
 export { repairJSON, extractJSON } from './repair.js';
 export { registerProfile, getProfile } from './registry.js';
+// NEW EXPORTS
+export { useGuard } from './useGuard.js';
+export { SchemaEngine } from './SchemaEngine.js';
 `;
 
   const indexProContent = `/**
@@ -66,12 +82,15 @@ export { useStreamingJson, useTypedStream, useVercelStream } from './useStreamin
 export { scanText } from './scanner.js';
 export { repairJSON, extractJSON } from './repair.js';
 export { registerProfile, getProfile } from './registry.js';
+// NEW EXPORTS
+export { useGuard } from './useGuard.js';
+export { SchemaEngine } from './SchemaEngine.js';
 `;
 
   fs.writeFileSync('dist/index.js', indexContent);
   fs.writeFileSync('dist/index-pro.js', indexProContent);
 
-  if (fs.existsSync('src/index.d.ts')) copyFile('src/index.d.ts', 'dist/index.d.ts');
+  if (fs.existsSync('src/index.d.ts')) copyAndFix('src/index.d.ts', 'dist/index.d.ts');
 
   console.log("✅ Build Complete.");
   console.log("   - Default: dist/index.js -> dist/useAIGuard.js (Pure JS)");
@@ -88,17 +107,24 @@ function injectWorker(workerPath, templatePath, outputPath) {
     .replace(/`/g, '\\`')
     .replace(/\$/g, '\\$');
 
-  const finalHook = hookTemplate.replace(
+  let finalHook = hookTemplate.replace(
     /const INLINE_WORKER_CODE = `[\s\S]*?`;/,
     `const INLINE_WORKER_CODE = \`${escapedWorkerCode}\`;`
   );
 
+  // Apply Import Flattening Fix to the Hook file as well
+  finalHook = fixImports(finalHook);
+
   fs.writeFileSync(outputPath, finalHook);
 }
 
-function copyFile(src, dest) {
+function copyAndFix(src, dest) {
   if (fs.existsSync(src)) {
-    fs.copyFileSync(src, dest);
+    const content = fs.readFileSync(src, 'utf8');
+    const fixedContent = fixImports(content);
+    fs.writeFileSync(dest, fixedContent);
+  } else {
+    console.warn(`Warning: Source file ${src} not found.`);
   }
 }
 
