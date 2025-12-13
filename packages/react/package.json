@@ -1,0 +1,25 @@
+{
+    "name": "@ai-guard/react",
+    "version": "1.5.0-beta.1",
+    "description": "React hooks for AI Guard.",
+    "type": "module",
+    "main": "./src/index.js",
+    "exports": {
+        ".": "./src/index.js"
+    },
+    "scripts": {
+        "build": "echo 'No build step needed for source utilization in monorepo, or add vite build lib'",
+        "test": "vitest"
+    },
+    "peerDependencies": {
+        "react": ">=16.8.0",
+        "zod": "^3.0.0"
+    },
+    "dependencies": {
+        "@ai-guard/core": "1.5.0-beta.1"
+    },
+    "devDependencies": {
+        "react": "^18.2.0",
+        "vitest": "^1.2.1"
+    }
+}

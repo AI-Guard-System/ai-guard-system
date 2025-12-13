@@ -1,5 +1,5 @@
 import React from 'react';
-import { useGuard } from 'react-ai-guard';
+import { useGuard } from '@ai-guard/react';
 import { z } from 'zod';
 
 const UserSchema = z.object({ name: z.string() });

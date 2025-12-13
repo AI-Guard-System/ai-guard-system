@@ -1,22 +1,12 @@
 {
-  "name": "react-ai-guard",
+  "name": "@ai-guard/core",
   "version": "1.5.0-beta.1",
-  "description": "Zero-latency AI Guardrails for React. Blocks PII, repairs broken JSON streams, extracts from reasoning traces—all in the browser. Plugin system for AI-powered detection.",
+  "description": "Kernel logic and Workers for AI Guardrails. Zero React dependencies.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.js"
-    },
-    "./pro": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index-pro.js",
-      "require": "./dist/index-pro.js"
-    },
-    "./core": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
@@ -26,45 +16,23 @@
     "README.md",
     "LICENSE"
   ],
-  "browser": {
-    "fs": false,
-    "path": false,
-    "os": false
-  },
   "scripts": {
     "build": "node scripts/build-worker.js && echo 'Build complete.'",
-    "prepublishOnly": "npm run build",
     "test": "vitest",
     "test:run": "vitest run"
   },
-  "keywords": [
-    "react",
-    "ai",
-    "llm",
-    "json-repair",
-    "guardrails",
-    "pii-stripping",
-    "security",
-    "deepseek",
-    "reasoning-models",
-    "vercel-ai-sdk",
-    "prompt-injection",
-    "plugins"
-  ],
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.1",
+    "vitest": "^1.2.1"
+  },
   "author": "ShyamSathish005",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/ShyamSathish005/react-ai-guard.git",
     "directory": "packages/core"
-  },
-  "peerDependencies": {
-    "react": ">=16.8.0",
-    "zod": "^3.0.0"
-  },
-  "devDependencies": {
-    "esbuild": "^0.27.1",
-    "vitest": "^1.2.1",
-    "zod": "^3.23.0"
   }
 }

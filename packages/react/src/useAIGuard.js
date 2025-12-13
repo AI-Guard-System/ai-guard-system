@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { scanText } from '../core/scanner.js';
-import { repairJSON, extractJSON } from '../core/repair.js';
+import { scanText, repairJSON, extractJSON, WORKER_CODE_PURE } from '@ai-guard/core';
 
 // --- GLOBAL SINGLETON SCOPE ---
 let sharedWorker = null;
@@ -8,11 +7,6 @@ let workerScriptUrl = null;
 let fallbackMode = false;
 const pendingRequests = new Map();
 const loadedPluginNames = new Set(); // Track which plugins are loaded globally
-
-// The "Blob" injection happens here in the build step.
-// For dev, we assume this string is injected or loaded.
-// In the final build, this var is populated.
-const INLINE_WORKER_CODE = `/* INJECTED_BY_BUILD_SCRIPT */`;
 
 // --- FALLBACK MAIN THREAD IMPLEMENTATION ---
 async function runMainThread(type, payload, options) {
@@ -75,9 +69,9 @@ function getWorker() {
   if (typeof window === 'undefined') return null; // SSR protection
 
   // Create the Blob URL once
-  if (!workerScriptUrl && INLINE_WORKER_CODE && INLINE_WORKER_CODE !== '/* INJECTED_BY_BUILD_SCRIPT */') {
+  if (!workerScriptUrl && WORKER_CODE_PURE) {
     try {
-      const blob = new Blob([INLINE_WORKER_CODE], { type: 'application/javascript' });
+      const blob = new Blob([WORKER_CODE_PURE], { type: 'application/javascript' });
       workerScriptUrl = URL.createObjectURL(blob);
     } catch (e) {
       console.warn("react-ai-guard: Blob creation failed (CSP). Falling back to main thread.");
@@ -86,8 +80,13 @@ function getWorker() {
     }
   }
 
-  // Fallback for dev environment (loading from file)
-  const url = workerScriptUrl || new URL('../worker/index.js', import.meta.url);
+  // Fallback for dev environment (loading from file) - REMOVED relative import logic as we rely on package import
+  const url = workerScriptUrl;
+  if (!url) {
+    console.warn("react-ai-guard: Worker code not found. Falling back to main thread.");
+    fallbackMode = true;
+    return null;
+  }
 
   try {
     sharedWorker = new Worker(url, { type: 'module' });

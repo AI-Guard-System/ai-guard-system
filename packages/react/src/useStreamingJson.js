@@ -7,7 +7,7 @@ import { useAIGuard } from './useAIGuard.js';
  */
 function createSchemaStub(schema) {
   if (!schema || typeof schema.shape !== 'object') return {};
-  
+
   const stub = {};
   try {
     const shape = schema.shape;
@@ -15,7 +15,7 @@ function createSchemaStub(schema) {
       // Check Zod field types via _def
       const def = field?._def;
       if (!def) continue;
-      
+
       const typeName = def.typeName;
       switch (typeName) {
         case 'ZodString': stub[key] = ''; break;
@@ -53,10 +53,10 @@ export function useStreamingJson(rawString, options = {}) {
     'fallback' in options || 'schema' in options || 'partial' in options ||
     'extract' in options || 'onComplete' in options || 'onError' in options
   );
-  
-  const { 
-    fallback = isOptionsObject ? undefined : options, 
-    schema = null, 
+
+  const {
+    fallback = isOptionsObject ? undefined : options,
+    schema = null,
     partial = true,
     extract = false,           // v1.2.0: Extract JSON from reasoning traces
     stubFromSchema = false,    // v1.2.0: Pre-fill skeleton from schema
@@ -64,33 +64,33 @@ export function useStreamingJson(rawString, options = {}) {
     onError = null,            // v1.2.0: Callback on repair error
     onValidationFail = null    // v1.2.0: Callback on schema validation failure
   } = isOptionsObject ? options : {};
-  
+
   // Compute initial state (SSR-safe)
-  const initialData = fallback !== undefined 
-    ? fallback 
+  const initialData = fallback !== undefined
+    ? fallback
     : (stubFromSchema && schema ? createSchemaStub(schema) : {});
-  
+
   const [data, setData] = useState(initialData);
   const [isValid, setIsValid] = useState(false);
   const [schemaErrors, setSchemaErrors] = useState([]);
   const [isComplete, setIsComplete] = useState(false);
-  
+
   // SSR guard: track if we're on client
   const [isClient, setIsClient] = useState(false);
   useEffect(() => { setIsClient(true); }, []);
-  
+
   const { repairJson } = useAIGuard();
-  
+
   // Track latest request to discard stale responses
   const requestIdRef = useRef(0);
   const prevDataRef = useRef(null);
   const completedRef = useRef(false);
-  
+
   // Stable callback refs
   const onCompleteRef = useRef(onComplete);
   const onErrorRef = useRef(onError);
   const onValidationFailRef = useRef(onValidationFail);
-  
+
   useEffect(() => {
     onCompleteRef.current = onComplete;
     onErrorRef.current = onError;
@@ -108,22 +108,22 @@ export function useStreamingJson(rawString, options = {}) {
       try {
         // v1.2.0: Pass extract option to worker
         const result = await repairJson(rawString, { extract });
-        
+
         if (currentRequestId !== requestIdRef.current) return;
-        
+
         if (result && result.data) {
           let validatedData = result.data;
           let errors = [];
           let schemaValid = true;
-          
-          const shouldValidateSchema = schema && 
-            typeof schema.safeParse === 'function' && 
+
+          const shouldValidateSchema = schema &&
+            typeof schema.safeParse === 'function' &&
             result.isValid;
-          
+
           if (shouldValidateSchema) {
             try {
               const parseResult = schema.safeParse(result.data);
-              
+
               if (parseResult.success) {
                 validatedData = parseResult.data;
                 schemaValid = true;
@@ -134,12 +134,12 @@ export function useStreamingJson(rawString, options = {}) {
                   message: e.message,
                   code: e.code
                 }));
-                
+
                 // v1.2.0: Fire validation fail callback
                 if (onValidationFailRef.current) {
                   onValidationFailRef.current(errors);
                 }
-                
+
                 if (partial) {
                   validatedData = result.data;
                   schemaValid = false;
@@ -156,11 +156,11 @@ export function useStreamingJson(rawString, options = {}) {
           } else if (schema && !result.isValid) {
             schemaValid = false;
           }
-          
+
           setData(validatedData);
           setIsValid(result.isValid && schemaValid);
           setSchemaErrors(errors);
-          
+
           // v1.2.0: Detect completion (valid JSON + schema passes)
           const nowComplete = result.isValid && schemaValid;
           if (nowComplete && !completedRef.current) {
@@ -170,7 +170,7 @@ export function useStreamingJson(rawString, options = {}) {
               onCompleteRef.current(validatedData);
             }
           }
-          
+
           prevDataRef.current = validatedData;
         }
       } catch (err) {
@@ -198,8 +198,8 @@ export function useStreamingJson(rawString, options = {}) {
     }
   }, [rawString]);
 
-  return { 
-    data, 
+  return {
+    data,
     isValid,
     schemaErrors,
     isSchemaValid: schemaErrors.length === 0,
@@ -225,27 +225,25 @@ export function useTypedStream(rawString, schema, fallback = {}) {
  */
 export function useVercelStream(messages, options = {}) {
   const { schema, fallback, extract = true, ...rest } = options;
-  
+
   // Get the last assistant message content
   const lastAssistantMessage = messages
     ?.filter(m => m.role === 'assistant')
     ?.pop();
-  
+
   const content = lastAssistantMessage?.content || '';
   const isStreaming = lastAssistantMessage && !lastAssistantMessage.finished;
-  
+
   const result = useStreamingJson(content, {
     schema,
     fallback,
     extract, // Default to extract mode for Vercel streams
     ...rest
   });
-  
+
   return {
     ...result,
     object: result.data,  // Alias for Vercel SDK naming convention
     isStreaming: !result.isComplete
   };
-}
-  return useStreamingJson(rawString, { schema, fallback, partial: true });
 }

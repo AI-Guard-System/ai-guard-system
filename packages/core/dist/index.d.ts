@@ -78,3 +78,6 @@ export function useStreamingJson(
 };
 
 export function useVercelStream(messages: any[], options?: any): any;
+
+export declare const WORKER_CODE_PURE: string;
+export declare const WORKER_CODE_PRO: string;
