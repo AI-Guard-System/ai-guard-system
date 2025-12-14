@@ -1,6 +1,6 @@
 {
   "name": "@ai-guard/core",
-  "version": "1.5.0-beta.1",
+  "version": "2.0.0",
   "description": "Kernel logic and Workers for AI Guardrails. Zero React dependencies.",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,6 +13,7 @@
   },
   "files": [
     "dist",
+    "src",
     "README.md",
     "LICENSE"
   ],

@@ -1,11 +1,542 @@
-/**
- * @ai-guard/core
- * Kernel Logic & Workers
- */
-export const WORKER_CODE_PURE = "var Z={CREDIT_CARD:/\\b(?:\\d{4}[ -]?){3}\\d{4}\\b/,EMAIL:/\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b/,API_KEY:/\\b(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})\\b/,SSN:/\\b\\d{3}-\\d{2}-\\d{4}\\b/,IPV4:/\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b/,AWS_KEY:/\\b(AKIA[0-9A-Z]{16})\\b/,JWT:/\\beyJ[a-zA-Z0-9_-]*\\.eyJ[a-zA-Z0-9_-]*\\.[a-zA-Z0-9_-]*\\b/};function M(r,a={},c=!1,e=[],s=[]){let t={};Array.isArray(a)?t={rules:a,redact:c,allow:e,customRules:s,mode:\"block\"}:t={rules:[],redact:!1,allow:[],customRules:[],mode:\"block\",...a};let{rules:l=[],redact:n=!1,allow:f=[],customRules:p=[],mode:h=\"block\"}=t,i=r,o=[],x=!0,b={...Z};for(let u of p)u.name&&u.pattern&&(b[u.name]=u.pattern);let d=l.length>0?l:Object.keys(b),w=f.map(u=>typeof u==\"string\"?new RegExp(u):u);for(let u of d){let m=b[u];if(!m)continue;let _=new RegExp(m.source,\"g\"),k=r.match(_);if(k&&k.length>0){let S=k.filter(N=>!w.some(J=>J.test(N)));S.length>0&&(x=!1,o.push({type:u,matches:S}))}}if(!x&&(n||h===\"block\"))for(let u of o)for(let m of u.matches)i=i.replace(m,`[${u.type}_REDACTED]`);let g=x?\"safe\":\"blocked\";return!x&&h===\"warn\"&&(g=\"warning\"),{safe:x||h===\"warn\"||h===\"silent\",status:g,findings:o,text:i}}function E(r){if(!r)return\"\";let a=r.trim();return a=a.replace(/^```[a-zA-Z]*\\s*/,\"\"),a=a.replace(/\\s*```$/,\"\"),a}function R(r,a={}){if(!r)return\"\";let{last:c=!0}=a,e=r;e=e.replace(/<think>[\\s\\S]*?<\\/think>/gi,\"\"),e=e.replace(/<think>[\\s\\S]*$/gi,\"\"),e=e.replace(/<\\/th$/gi,\"\");let s=/```(?:json|json5|javascript|js)?\\s*([\\s\\S]*?)(?:```|$)/gi,t=[],l;for(;(l=s.exec(e))!==null;){let d=l[1].trim();d&&(d.startsWith(\"{\")||d.startsWith(\"[\"))&&t.push(d)}if(t.length>0)return c?t[t.length-1]:t[0];let n=[],f=0,p=-1,h=!1,i=!1;for(let d=0;d<e.length;d++){let w=e[d];if(i){i=!1;continue}if(w===\"\\\\\"&&h){i=!0;continue}if(w==='\"'&&!i){h=!h;continue}h||(w===\"{\"||w===\"[\"?(f===0&&(p=d),f++):(w===\"}\"||w===\"]\")&&(f--,f===0&&p!==-1&&(n.push(e.slice(p,d+1)),p=-1)))}if(p!==-1&&f>0&&n.push(e.slice(p)),n.length>0)return c?n[n.length-1]:n[0];let o=e.indexOf(\"{\"),x=e.indexOf(\"[\");if(o===-1&&x===-1)return e.trim();let b=o===-1?x:x===-1?o:Math.min(o,x);return e.slice(b).trim()}function O(r,a={}){let{extract:c=!1}=a,e=c?R(r):E(r);if(!e||!e.trim())return{fixed:\"{}\",data:{},isPartial:!1,patches:[]};let s=e.trim(),t=[],l=!1,n=[],f=!1,p=!1;for(let i=0;i<s.length;i++){let o=s[i];if(p){p=!1;continue}if(o===\"\\\\\"&&f){p=!0;continue}if(o==='\"'&&!p){f=!f,f?n.push('\"'):n.length>0&&n[n.length-1]==='\"'&&n.pop();continue}f||(o===\"{\"?n.push(\"{\"):o===\"[\"?n.push(\"[\"):o===\"}\"?n.length>0&&n[n.length-1]===\"{\"&&n.pop():o===\"]\"&&n.length>0&&n[n.length-1]===\"[\"&&n.pop())}if(f&&(t.push({type:\"unclosed_string\",index:s.length}),s+='\"',l=!0,n.length>0&&n[n.length-1]==='\"'&&n.pop()),/,\\s*$/.test(s)){let i=s.match(/,\\s*$/);t.push({type:\"trailing_comma\",index:i.index}),s=s.replace(/,\\s*$/,\"\"),l=!0}for(;n.length>0;){let i=n.pop();i===\"{\"?(t.push({type:\"missing_brace\",index:s.length}),s+=\"}\",l=!0):i===\"[\"&&(t.push({type:\"missing_brace\",index:s.length}),s+=\"]\",l=!0)}let h=null;try{h=JSON.parse(s)}catch{}return{fixed:s,data:h,isPartial:l,patches:t}}var P=null,I=null,z=!1;async function L(){if(!P){if(!z)throw new Error(\"Wasm Kernel is disabled in this build.\");try{let r=await import(\"../core/repair_wasm.js\");P=await(r.default||r)(),I=P.cwrap(\"repair_json\",\"string\",[\"string\"])}catch(r){throw console.error(\"Failed to load Wasm kernel:\",r),r}}}var y=new Map,A=new Map;async function W(r){let{name:a,url:c,module:e}=r;if(y.has(a))return{success:!0,name:a,cached:!0};if(A.has(a))return await A.get(a),{success:!0,name:a,cached:!0};let s=(async()=>{try{let t;if(e)t=e;else if(c)t=await import(c);else throw new Error(\"Plugin requires either url or module\");return typeof t.init==\"function\"&&await t.init(),y.set(a,t),t}catch(t){throw A.delete(a),t}})();return A.set(a,s),await s,{success:!0,name:a}}async function j(r,a=null){let c=[],e=a?a.filter(s=>y.has(s)):Array.from(y.keys());for(let s of e){let t=y.get(s);if(t&&typeof t.check==\"function\")try{let l=await t.check(r);if(c.push({name:s,...l}),!l.safe)return{safe:!1,blockedBy:s,reason:l.reason||\"Plugin blocked\",score:l.score,results:c}}catch(l){c.push({name:s,error:l.message})}}return{safe:!0,results:c}}self.onmessage=async r=>{let{id:a,type:c,payload:e,options:s}=r.data;try{let t;switch(c){case\"LOAD_PLUGIN\":t=await W(e);break;case\"UNLOAD_PLUGIN\":let l=typeof e==\"string\"?e:e.name;y.delete(l),A.delete(l),t={success:!0,name:l};break;case\"LIST_PLUGINS\":t={plugins:Array.from(y.keys())};break;case\"SCAN_TEXT\":let n=typeof e==\"string\"?e:e?.text,f=s?.rules||e?.enabledRules||[],p=s?.redact??e?.redact??!1,h=s?.allow||e?.allow||[],i=s?.customRules||e?.customRules||[],o=s?.runPlugins??e?.runPlugins??!0,x=s?.plugins||e?.plugins||null;if(t=M(n,f,p,h,i),t.safe&&o&&y.size>0){let g=await j(n,x);g.safe?t.pluginResults=g.results:t={...t,safe:!1,blockedBy:g.blockedBy,reason:g.reason,score:g.score,pluginResults:g.results}}break;case\"REPAIR_JSON\":{let g=typeof e==\"string\"?e:e?.text,T=s?.extract??e?.extract??!1,u=s?.useWasm&&z,m;if(u){P||await L();let S=T?R(g):E(g);m={fixed:I(S),data:null,isPartial:!1,patches:[]}}else m=O(g,{extract:T});let _=m.data,k=!0;if(_===null&&m.fixed!==\"null\")try{_=JSON.parse(m.fixed)}catch{k=!1}t={fixedString:m.fixed,data:_,isValid:k,isPartial:m.isPartial,patches:m.patches,mode:u?\"wasm\":\"js\"}}break;case\"EXTRACT_JSON\":let b=typeof e==\"string\"?e:e?.text,d=s?.last??e?.last??!0;t={extracted:R(b,{last:d})};break;default:throw new Error(`Unknown message type: ${c}`)}self.postMessage({id:a,success:!0,payload:t})}catch(t){self.postMessage({id:a,success:!1,error:t.message})}};\n";
-export const WORKER_CODE_PRO = "var le=Object.defineProperty;var Xe=(l,s,r)=>s in l?le(l,s,{enumerable:!0,configurable:!0,writable:!0,value:r}):l[s]=r;var Ye=(l,s)=>()=>(l&&(s=l(l=0)),s);var Qe=(l,s)=>{for(var r in s)le(l,r,{get:s[r],enumerable:!0})};var ce=(l,s,r)=>Xe(l,typeof s!=\"symbol\"?s+\"\":s,r);var Ae={};Qe(Ae,{default:()=>rt});async function tt(l={}){var s,r=l,n=!!globalThis.window,o=!!globalThis.WorkerGlobalScope,i=globalThis.process?.versions?.node&&globalThis.process?.type!=\"renderer\",A=[],c=\"./this.program\",v=import.meta.url,w=\"\",b,p;if(n||o){try{w=new URL(\".\",v).href}catch{}o&&(p=e=>{var t=new XMLHttpRequest;return t.open(\"GET\",e,!1),t.responseType=\"arraybuffer\",t.send(null),new Uint8Array(t.response)}),b=async e=>{var t=await fetch(e,{credentials:\"same-origin\"});if(t.ok)return t.arrayBuffer();throw new Error(t.status+\" : \"+t.url)}}var y=console.log.bind(console),E=console.error.bind(console),T,R=!1;function P(e){for(var t=0,a=e.length,f=new Uint8Array(a),h;t<a;++t)h=e.charCodeAt(t),f[t]=~h>>8&h;return f}var S,I,m,_,U,j,W,H,q,he,de,ye,L=!1;function ve(){var e=ie.buffer;m=new Int8Array(e),U=new Int16Array(e),_=new Uint8Array(e),j=new Uint16Array(e),W=new Int32Array(e),H=new Uint32Array(e),q=new Float32Array(e),he=new Float64Array(e),de=new BigInt64Array(e),ye=new BigUint64Array(e)}function we(){if(r.preRun)for(typeof r.preRun==\"function\"&&(r.preRun=[r.preRun]);r.preRun.length;)Ne(r.preRun.shift());K(Y)}function Re(){L=!0,O.b()}function _e(){if(r.postRun)for(typeof r.postRun==\"function\"&&(r.postRun=[r.postRun]);r.postRun.length;)xe(r.postRun.shift());K(X)}function be(e){r.onAbort?.(e),e=\"Aborted(\"+e+\")\",E(e),R=!0,e+=\". Build with -sASSERTIONS for more info.\";var t=new WebAssembly.RuntimeError(e);throw I?.(t),t}var V;function Ee(){return P('\\0asm\u0001\\0\\0\\0\u0001\u0011\u0004`\u0001\\x7F\u0001\\x7F`\\0\u0001\\x7F`\u0001\\x7F\\0`\\0\\0\u0003\u0006\u0005\u0001\\0\u0002\\0\u0003\u0005\\x07\u0001\u0001\\xA2\u0002\\x80\\x80\u0002\u0006\t\u0001\\x7F\u0001A\\x90\\x90\\x84\u0001\\v\\x07\u0019\u0006\u0001a\u0002\\0\u0001b\\0\u0004\u0001c\\0\u0003\u0001d\\0\u0002\u0001e\\0\u0001\u0001f\\0\\0\\f\u0001\u0001\\n\\xC1\u0005\u0005\u0004\\0#\\0\\v\u0010\\0#\\0 \\0kApq\"\\0$\\0 \\0\\v\u0006\\0 \\0$\\0\\v\\x9E\u0005\u0001\\b\\x7FA\\x7F!\u0001A\\x80\\bA\\x7F6\u0002\\0\u0002@\u0002\\x7F\u0002@\u0002@ \\0\"\\x07A\u0003qE\\r\\0A\\0 \\0-\\0\\0E\\r\u0002\u001a\u0003@ \\0A\u0001j\"\\0A\u0003qE\\r\u0001 \\0-\\0\\0\\r\\0\\v\\f\u0001\\v\u0003@ \\0\"\u0005A\u0004j!\\0A\\x80\\x82\\x84\\b \u0005(\u0002\\0\"\\bk \\brA\\x80\\x81\\x82\\x84xqA\\x80\\x81\\x82\\x84xF\\r\\0\\v\u0003@ \u0005\"\\0A\u0001j!\u0005 \\0-\\0\\0\\r\\0\\v\\v \\0 \\x07k\\v\"\u0005A\\0L\\r\\0\u0002\\x7F\u0003@A\\xFF\\xFF\\xFF\\0 \u0002A\\xFF\\xFF\\xFF\\0F\\r\u0001\u001a \u0002 \u0002 \\x07j-\\0\\0\"\\0:\\0\\x90\u0010 \u0006A\u0001q!\u0003A\\0!\u0006\u0002@ \u0003\\r\\0 \\0A\\xDC\\0F\u0004@A\u0001!\u0006\\f\u0001\\v \\0A\"F\u0004@ \u0004A\u0001s!\u0004\\f\u0001\\v \u0004A\u0001q\u0004@A\u0001!\u0004\\f\u0001\\v\u0002@\u0002@\u0002@ \\0A\\xDB\\0G\u0004@ \\0A\\xFB\\0G\\r\u0001 \u0001A\\xFE\\x07J\\r\u0002A\\0!\u0004A\\x80\\b \u0001A\u0001j\"\\x006\u0002\\0 \u0001A\\x91\\bjA\\xFD\\0:\\0\\0 \\0!\u0001\\f\u0003\\v \u0001A\\xFE\\x07J\\r\u0001A\\0!\u0004A\\x80\\b \u0001A\u0001j\"\\x006\u0002\\0 \u0001A\\x91\\bjA\\xDD\\0:\\0\\0 \\0!\u0001\\f\u0002\\vA\\0!\u0004 \\0A\\xDF\u0001qA\\xDD\\0G\\r\u0001 \u0001A\\0H\\r\u0001 \u0001-\\0\\x90\\b \\0G\\r\u0001A\\x80\\b \u0001A\u0001k\"\u00016\u0002\\0\\f\u0001\\vA\\0!\u0004\\v\\v \u0002A\u0001j\"\u0002 \u0005G\\r\\0\\v \u0005\\v!\u0003 \u0004A\u0001q\u0004@ \u0003A\":\\0\\x90\u0010 \u0003A\u0001j!\u0003\\vA\\0!\u0006 \u0001A\\0H\\r\\0\u0002@ \u0001A\u0003qA\u0003F\u0004@ \u0001!\u0002\\f\u0001\\v \u0001A\u0001jA\u0003q!\\0 \u0001!\u0002\u0003@ \u0003A\\x90\u0010j \u0002-\\0\\x90\\b:\\0\\0 \u0003A\u0001j!\u0003 \u0002A\u0001k!\u0002 \u0006A\u0001j\"\u0006 \\0G\\r\\0\\v\\v \u0001A\u0003O\u0004@\u0003@ \u0003A\\x90\u0010j \u0002A\\x90\\bj-\\0\\0:\\0\\0 \u0003A\\x91\u0010j \u0002A\\x8F\\bj-\\0\\0:\\0\\0 \u0003A\\x92\u0010j \u0002A\\x8E\\bj-\\0\\0:\\0\\0 \u0003A\\x93\u0010j \u0002A\\x8D\\bj-\\0\\0:\\0\\0 \u0003A\u0004j!\u0003 \u0002A\u0003G \u0002A\u0004k!\u0002\\r\\0\\v\\vA\\x80\\bA\\x7F6\u0002\\0\\v \u0003A\\x90\u0010jA\\0:\\0\\0A\\x90\u0010\\v\u0002\\0\\v\\v\\v\u0001\\0A\\x80\\b\\v\u0004\\xFF\\xFF\\xFF\\xFF')}function it(e){return e}async function Se(e){return e}async function ke(e,t){try{var a=await Se(e),f=await WebAssembly.instantiate(a,t);return f}catch(h){E(`failed to asynchronously prepare wasm: ${h}`),be(h)}}async function Pe(e,t,a){return ke(t,a)}function Te(){var e={a:Le};return e}async function je(){function e(d,u){return O=d.exports,Ze(O),ve(),O}function t(d){return e(d.instance)}var a=Te();if(r.instantiateWasm)return new Promise((d,u)=>{r.instantiateWasm(a,(g,N)=>{d(e(g,N))})});V??(V=Ee());var f=await Pe(T,V,a),h=t(f);return h}class ot{constructor(t){ce(this,\"name\",\"ExitStatus\");this.message=`Program terminated with exit(${t})`,this.status=t}}for(var K=e=>{for(;e.length>0;)e.shift()(r)},X=[],xe=e=>X.push(e),Y=[],Ne=e=>Y.push(e),Be=!0,Ue=e=>ne(e),Me=()=>se(),Q=e=>{var t=r[\"_\"+e];return t},Ce=(e,t)=>{m.set(e,t)},Ie=e=>{for(var t=0,a=0;a<e.length;++a){var f=e.charCodeAt(a);f<=127?t++:f<=2047?t+=2:f>=55296&&f<=57343?(t+=4,++a):t+=3}return t},We=(e,t,a,f)=>{if(!(f>0))return 0;for(var h=a,d=a+f-1,u=0;u<e.length;++u){var g=e.codePointAt(u);if(g<=127){if(a>=d)break;t[a++]=g}else if(g<=2047){if(a+1>=d)break;t[a++]=192|g>>6,t[a++]=128|g&63}else if(g<=65535){if(a+2>=d)break;t[a++]=224|g>>12,t[a++]=128|g>>6&63,t[a++]=128|g&63}else{if(a+3>=d)break;t[a++]=240|g>>18,t[a++]=128|g>>12&63,t[a++]=128|g>>6&63,t[a++]=128|g&63,u++}}return t[a]=0,a-h},Fe=(e,t,a)=>We(e,_,t,a),ee=e=>ae(e),Oe=e=>{var t=Ie(e)+1,a=ee(t);return Fe(e,a,t),a},te=globalThis.TextDecoder&&new TextDecoder,De=(e,t,a,f)=>{var h=t+a;if(f)return h;for(;e[t]&&!(t>=h);)++t;return t},ze=(e,t=0,a,f)=>{var h=De(e,t,a,f);if(h-t>16&&e.buffer&&te)return te.decode(e.subarray(t,h));for(var d=\"\";t<h;){var u=e[t++];if(!(u&128)){d+=String.fromCharCode(u);continue}var g=e[t++]&63;if((u&224)==192){d+=String.fromCharCode((u&31)<<6|g);continue}var N=e[t++]&63;if((u&240)==224?u=(u&15)<<12|g<<6|N:u=(u&7)<<18|g<<12|N<<6|e[t++]&63,u<65536)d+=String.fromCharCode(u);else{var M=u-65536;d+=String.fromCharCode(55296|M>>10,56320|M&1023)}}return d},He=(e,t,a)=>e?ze(_,e,t,a):\"\",re=(e,t,a,f,h)=>{var d={string:k=>{var D=0;return k!=null&&k!==0&&(D=Oe(k)),D},array:k=>{var D=ee(k.length);return Ce(k,D),D}};function u(k){return t===\"string\"?He(k):t===\"boolean\"?!!k:k}var g=Q(e),N=[],M=0;if(f)for(var C=0;C<f.length;C++){var oe=d[a[C]];oe?(M===0&&(M=Me()),N[C]=oe(f[C])):N[C]=f[C]}var G=g(...N);function Ke(k){return M!==0&&Ue(M),u(k)}return G=Ke(G),G},Je=(e,t,a,f)=>{var h=!a||a.every(u=>u===\"number\"||u===\"boolean\"),d=t!==\"string\";return d&&h&&!f?Q(e):(...u)=>re(e,t,a,u,f)},F=new Uint8Array(123),x=25;x>=0;--x)F[48+x]=52+x,F[65+x]=x,F[97+x]=26+x;if(F[43]=62,F[47]=63,r.noExitRuntime&&(Be=r.noExitRuntime),r.print&&(y=r.print),r.printErr&&(E=r.printErr),r.wasmBinary&&(T=r.wasmBinary),r.arguments&&(A=r.arguments),r.thisProgram&&(c=r.thisProgram),r.preInit)for(typeof r.preInit==\"function\"&&(r.preInit=[r.preInit]);r.preInit.length>0;)r.preInit.shift()();r.ccall=re,r.cwrap=Je;var $e,ne,ae,se,qe,Ge,ie;function Ze(e){$e=r._repair_json=e.c,ne=e.d,ae=e.e,se=e.f,qe=ie=e.a,Ge=e.__indirect_function_table}var Le={};function Ve(){we();function e(){r.calledRun=!0,!R&&(Re(),S?.(r),r.onRuntimeInitialized?.(),_e())}r.setStatus?(r.setStatus(\"Running...\"),setTimeout(()=>{setTimeout(()=>r.setStatus(\"\"),1),e()},1)):e()}var O;return O=await je(),Ve(),L?s=r:s=new Promise((e,t)=>{S=e,I=t}),s}var rt,pe=Ye(()=>{rt=tt});var et={CREDIT_CARD:/\\b(?:\\d{4}[ -]?){3}\\d{4}\\b/,EMAIL:/\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b/,API_KEY:/\\b(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})\\b/,SSN:/\\b\\d{3}-\\d{2}-\\d{4}\\b/,IPV4:/\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b/,AWS_KEY:/\\b(AKIA[0-9A-Z]{16})\\b/,JWT:/\\beyJ[a-zA-Z0-9_-]*\\.eyJ[a-zA-Z0-9_-]*\\.[a-zA-Z0-9_-]*\\b/};function fe(l,s={},r=!1,n=[],o=[]){let i={};Array.isArray(s)?i={rules:s,redact:r,allow:n,customRules:o,mode:\"block\"}:i={rules:[],redact:!1,allow:[],customRules:[],mode:\"block\",...s};let{rules:A=[],redact:c=!1,allow:v=[],customRules:w=[],mode:b=\"block\"}=i,p=l,y=[],E=!0,T={...et};for(let m of w)m.name&&m.pattern&&(T[m.name]=m.pattern);let R=A.length>0?A:Object.keys(T),P=v.map(m=>typeof m==\"string\"?new RegExp(m):m);for(let m of R){let _=T[m];if(!_)continue;let U=new RegExp(_.source,\"g\"),j=l.match(U);if(j&&j.length>0){let W=j.filter(H=>!P.some(q=>q.test(H)));W.length>0&&(E=!1,y.push({type:m,matches:W}))}}if(!E&&(c||b===\"block\"))for(let m of y)for(let _ of m.matches)p=p.replace(_,`[${m.type}_REDACTED]`);let S=E?\"safe\":\"blocked\";return!E&&b===\"warn\"&&(S=\"warning\"),{safe:E||b===\"warn\"||b===\"silent\",status:S,findings:y,text:p}}function Z(l){if(!l)return\"\";let s=l.trim();return s=s.replace(/^```[a-zA-Z]*\\s*/,\"\"),s=s.replace(/\\s*```$/,\"\"),s}function J(l,s={}){if(!l)return\"\";let{last:r=!0}=s,n=l;n=n.replace(/<think>[\\s\\S]*?<\\/think>/gi,\"\"),n=n.replace(/<think>[\\s\\S]*$/gi,\"\"),n=n.replace(/<\\/th$/gi,\"\");let o=/```(?:json|json5|javascript|js)?\\s*([\\s\\S]*?)(?:```|$)/gi,i=[],A;for(;(A=o.exec(n))!==null;){let R=A[1].trim();R&&(R.startsWith(\"{\")||R.startsWith(\"[\"))&&i.push(R)}if(i.length>0)return r?i[i.length-1]:i[0];let c=[],v=0,w=-1,b=!1,p=!1;for(let R=0;R<n.length;R++){let P=n[R];if(p){p=!1;continue}if(P===\"\\\\\"&&b){p=!0;continue}if(P==='\"'&&!p){b=!b;continue}b||(P===\"{\"||P===\"[\"?(v===0&&(w=R),v++):(P===\"}\"||P===\"]\")&&(v--,v===0&&w!==-1&&(c.push(n.slice(w,R+1)),w=-1)))}if(w!==-1&&v>0&&c.push(n.slice(w)),c.length>0)return r?c[c.length-1]:c[0];let y=n.indexOf(\"{\"),E=n.indexOf(\"[\");if(y===-1&&E===-1)return n.trim();let T=y===-1?E:E===-1?y:Math.min(y,E);return n.slice(T).trim()}function ue(l,s={}){let{extract:r=!1}=s,n=r?J(l):Z(l);if(!n||!n.trim())return{fixed:\"{}\",data:{},isPartial:!1,patches:[]};let o=n.trim(),i=[],A=!1,c=[],v=!1,w=!1;for(let p=0;p<o.length;p++){let y=o[p];if(w){w=!1;continue}if(y===\"\\\\\"&&v){w=!0;continue}if(y==='\"'&&!w){v=!v,v?c.push('\"'):c.length>0&&c[c.length-1]==='\"'&&c.pop();continue}v||(y===\"{\"?c.push(\"{\"):y===\"[\"?c.push(\"[\"):y===\"}\"?c.length>0&&c[c.length-1]===\"{\"&&c.pop():y===\"]\"&&c.length>0&&c[c.length-1]===\"[\"&&c.pop())}if(v&&(i.push({type:\"unclosed_string\",index:o.length}),o+='\"',A=!0,c.length>0&&c[c.length-1]==='\"'&&c.pop()),/,\\s*$/.test(o)){let p=o.match(/,\\s*$/);i.push({type:\"trailing_comma\",index:p.index}),o=o.replace(/,\\s*$/,\"\"),A=!0}for(;c.length>0;){let p=c.pop();p===\"{\"?(i.push({type:\"missing_brace\",index:o.length}),o+=\"}\",A=!0):p===\"[\"&&(i.push({type:\"missing_brace\",index:o.length}),o+=\"]\",A=!0)}let b=null;try{b=JSON.parse(o)}catch{}return{fixed:o,data:b,isPartial:A,patches:i}}var $=null,ge=null,me=!0;async function nt(){if(!$){if(!me)throw new Error(\"Wasm Kernel is disabled in this build.\");try{let l=await Promise.resolve().then(()=>(pe(),Ae));$=await(l.default||l)(),ge=$.cwrap(\"repair_json\",\"string\",[\"string\"])}catch(l){throw console.error(\"Failed to load Wasm kernel:\",l),l}}}var B=new Map,z=new Map;async function at(l){let{name:s,url:r,module:n}=l;if(B.has(s))return{success:!0,name:s,cached:!0};if(z.has(s))return await z.get(s),{success:!0,name:s,cached:!0};let o=(async()=>{try{let i;if(n)i=n;else if(r)i=await import(r);else throw new Error(\"Plugin requires either url or module\");return typeof i.init==\"function\"&&await i.init(),B.set(s,i),i}catch(i){throw z.delete(s),i}})();return z.set(s,o),await o,{success:!0,name:s}}async function st(l,s=null){let r=[],n=s?s.filter(o=>B.has(o)):Array.from(B.keys());for(let o of n){let i=B.get(o);if(i&&typeof i.check==\"function\")try{let A=await i.check(l);if(r.push({name:o,...A}),!A.safe)return{safe:!1,blockedBy:o,reason:A.reason||\"Plugin blocked\",score:A.score,results:r}}catch(A){r.push({name:o,error:A.message})}}return{safe:!0,results:r}}self.onmessage=async l=>{let{id:s,type:r,payload:n,options:o}=l.data;try{let i;switch(r){case\"LOAD_PLUGIN\":i=await at(n);break;case\"UNLOAD_PLUGIN\":let A=typeof n==\"string\"?n:n.name;B.delete(A),z.delete(A),i={success:!0,name:A};break;case\"LIST_PLUGINS\":i={plugins:Array.from(B.keys())};break;case\"SCAN_TEXT\":let c=typeof n==\"string\"?n:n?.text,v=o?.rules||n?.enabledRules||[],w=o?.redact??n?.redact??!1,b=o?.allow||n?.allow||[],p=o?.customRules||n?.customRules||[],y=o?.runPlugins??n?.runPlugins??!0,E=o?.plugins||n?.plugins||null;if(i=fe(c,v,w,b,p),i.safe&&y&&B.size>0){let S=await st(c,E);S.safe?i.pluginResults=S.results:i={...i,safe:!1,blockedBy:S.blockedBy,reason:S.reason,score:S.score,pluginResults:S.results}}break;case\"REPAIR_JSON\":{let S=typeof n==\"string\"?n:n?.text,I=o?.extract??n?.extract??!1,m=o?.useWasm&&me,_;if(m){$||await nt();let W=I?J(S):Z(S);_={fixed:ge(W),data:null,isPartial:!1,patches:[]}}else _=ue(S,{extract:I});let U=_.data,j=!0;if(U===null&&_.fixed!==\"null\")try{U=JSON.parse(_.fixed)}catch{j=!1}i={fixedString:_.fixed,data:U,isValid:j,isPartial:_.isPartial,patches:_.patches,mode:m?\"wasm\":\"js\"}}break;case\"EXTRACT_JSON\":let T=typeof n==\"string\"?n:n?.text,R=o?.last??n?.last??!0;i={extracted:J(T,{last:R})};break;default:throw new Error(`Unknown message type: ${r}`)}self.postMessage({id:s,success:!0,payload:i})}catch(i){self.postMessage({id:s,success:!1,error:i.message})}};\n";
+// src/security/EntropyScanner.ts
+function calculateShannonEntropy(str) {
+  if (!str) return 0;
+  const charMap = {};
+  const len = str.length;
+  for (let i = 0; i < len; i++) {
+    const char = str[i];
+    charMap[char] = (charMap[char] || 0) + 1;
+  }
+  let entropy = 0;
+  for (const char in charMap) {
+    const p = charMap[char] / len;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+function scanEntropy(text, threshold = 5.2) {
+  const tokens = text.split(/\s+/);
+  const results = [];
+  for (const token of tokens) {
+    if (token.length < 8) continue;
+    const entropy = calculateShannonEntropy(token);
+    if (entropy > threshold) {
+      results.push({
+        score: entropy,
+        isHighEntropy: true,
+        text: token
+      });
+    }
+  }
+  return results;
+}
 
-export { scanText } from './scanner.js';
-export { repairJSON, extractJSON } from './repair.js';
-export { registerProfile, getProfile } from './registry.js';
-export { SchemaEngine } from './SchemaEngine.js';
+// src/security/InjectionScanner.ts
+var INJECTION_PATTERNS = [
+  { pattern: /ignore previous instructions/i, score: 0.9, name: "IGNORE_PREVIOUS" },
+  { pattern: /system override/i, score: 0.9, name: "SYSTEM_OVERRIDE" },
+  { pattern: /\bDAN\b/i, score: 0.6, name: "DAN_MODE" },
+  // Do Anything Now
+  { pattern: /dev mode/i, score: 0.7, name: "DEV_MODE" },
+  { pattern: /act as a/i, score: 0.3, name: "ACT_AS" },
+  // Lower score, common in legitimate prompts
+  { pattern: /you are unrestricted/i, score: 0.95, name: "UNRESTRICTED" },
+  { pattern: /disable safety procedures/i, score: 1, name: "DISABLE_SAFETY" }
+];
+function scanInjection(text) {
+  let maxScore = 0;
+  let detected = false;
+  let reason = "";
+  for (const item of INJECTION_PATTERNS) {
+    if (item.pattern.test(text)) {
+      if (item.score > maxScore) {
+        maxScore = item.score;
+        detected = true;
+        reason = `Detected pattern: ${item.name}`;
+      }
+    }
+  }
+  return {
+    score: maxScore,
+    isDetected: detected,
+    reason: detected ? reason : void 0
+  };
+}
+
+// src/security/PII.ts
+var PATTERNS = {
+  CREDIT_CARD: /\b(?:\d{4}[ -]?){3}\d{4}\b/,
+  EMAIL: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/,
+  API_KEY: /\b(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})\b/,
+  SSN: /\b\d{3}-\d{2}-\d{4}\b/,
+  IPV4: /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/,
+  AWS_KEY: /\b(AKIA[0-9A-Z]{16})\b/,
+  JWT: /\beyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*\b/
+};
+var CONTEXT_TRIGGERS = {
+  SSN: ["ssn", "social", "security", "number", "id"],
+  CREDIT_CARD: ["cc", "card", "visa", "amex", "mastercard", "payment"],
+  API_KEY: ["key", "api", "secret", "token"],
+  EMAIL: ["email", "contact", "mail"]
+};
+function scanPII(text, options = {}) {
+  const {
+    rules = Object.keys(PATTERNS),
+    redact = false,
+    allow = [],
+    mode = "block"
+  } = options;
+  let cleanText = text;
+  const findings = [];
+  let isClean = true;
+  const allowPatterns = allow.map(
+    (p) => typeof p === "string" ? new RegExp(p) : p
+  );
+  for (const ruleKey of rules) {
+    const regex = PATTERNS[ruleKey];
+    if (!regex) continue;
+    const globalRegex = new RegExp(regex.source, "g");
+    let match;
+    while ((match = globalRegex.exec(text)) !== null) {
+      const matchText = match[0];
+      const index = match.index;
+      if (allowPatterns.some((ap) => ap.test(matchText))) {
+        continue;
+      }
+      const start = Math.max(0, index - 25);
+      const prefix = text.slice(start, index).toLowerCase();
+      let contextScore = 0;
+      const triggers = CONTEXT_TRIGGERS[ruleKey] || [];
+      if (triggers.length > 0) {
+        if (triggers.some((t) => prefix.includes(t))) {
+          contextScore = 1;
+        }
+      }
+      findings.push({
+        type: ruleKey,
+        match: matchText,
+        context: contextScore > 0 ? "supported" : "neutral"
+      });
+      isClean = false;
+    }
+  }
+  if (!isClean && (redact || mode === "block")) {
+    const uniqueMatches = [...new Set(findings.map((f) => f.match))];
+    for (const m of uniqueMatches) {
+      const type = findings.find((f) => f.match === m)?.type || "PII";
+      const escaped = m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      cleanText = cleanText.replace(new RegExp(escaped, "g"), `[${type}_REDACTED]`);
+    }
+  }
+  const status = isClean ? "safe" : mode === "warn" ? "warning" : "blocked";
+  return {
+    hasPII: !isClean,
+    status,
+    redactedText: cleanText,
+    findings
+  };
+}
+
+// src/AiGuardStream.ts
+var AiGuardStream = class extends TransformStream {
+  constructor(options = {}) {
+    const textDecoder = new TextDecoder();
+    const textEncoder = new TextEncoder();
+    super({
+      transform(chunk, controller) {
+        let text = typeof chunk === "string" ? chunk : textDecoder.decode(chunk, { stream: true });
+        const injection = scanInjection(text);
+        if (injection.isDetected) {
+          if (options.onInjectionDetected) options.onInjectionDetected(injection);
+          if (options.blockOnInjection) {
+            controller.error(new Error(`Security Block: ${injection.reason}`));
+            return;
+          }
+        }
+        const entropy = scanEntropy(text);
+        if (entropy.length > 0) {
+          if (options.onEntropyDetected) options.onEntropyDetected(entropy);
+        }
+        const piiResult = scanPII(text, options.pii);
+        if (piiResult.hasPII) {
+          if (options.onPIIDetected) options.onPIIDetected(piiResult);
+          controller.enqueue(textEncoder.encode(piiResult.redactedText));
+        } else {
+          controller.enqueue(textEncoder.encode(text));
+        }
+      }
+    });
+  }
+};
+
+// src/core/repair.js
+function stripMarkdown(text) {
+  if (!text) return "";
+  let clean = text.trim();
+  clean = clean.replace(/^```[a-zA-Z]*\s*/, "");
+  clean = clean.replace(/\s*```$/, "");
+  return clean;
+}
+function extractJSON(text, options = {}) {
+  if (!text) return "";
+  const { last = true } = options;
+  let clean = text;
+  clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  clean = clean.replace(/<think>[\s\S]*$/gi, "");
+  clean = clean.replace(/<\/th$/gi, "");
+  const codeBlockRegex = /```(?:json|json5|javascript|js)?\s*([\s\S]*?)(?:```|$)/gi;
+  const codeBlocks = [];
+  let match;
+  while ((match = codeBlockRegex.exec(clean)) !== null) {
+    const content = match[1].trim();
+    if (content && (content.startsWith("{") || content.startsWith("["))) {
+      codeBlocks.push(content);
+    }
+  }
+  if (codeBlocks.length > 0) {
+    return last ? codeBlocks[codeBlocks.length - 1] : codeBlocks[0];
+  }
+  const jsonCandidates = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && inString) {
+      escaped = true;
+      continue;
+    }
+    if (char === '"' && !escaped) {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === "{" || char === "[") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (char === "}" || char === "]") {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        jsonCandidates.push(clean.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+  if (start !== -1 && depth > 0) {
+    jsonCandidates.push(clean.slice(start));
+  }
+  if (jsonCandidates.length > 0) {
+    return last ? jsonCandidates[jsonCandidates.length - 1] : jsonCandidates[0];
+  }
+  const firstBrace = clean.indexOf("{");
+  const firstBracket = clean.indexOf("[");
+  if (firstBrace === -1 && firstBracket === -1) {
+    return clean.trim();
+  }
+  const jsonStart = firstBrace === -1 ? firstBracket : firstBracket === -1 ? firstBrace : Math.min(firstBrace, firstBracket);
+  return clean.slice(jsonStart).trim();
+}
+function repairJSON(raw, options = {}) {
+  const { extract = false } = options;
+  let text = extract ? extractJSON(raw) : stripMarkdown(raw);
+  if (!text || !text.trim()) {
+    return {
+      fixed: "{}",
+      data: {},
+      isPartial: false,
+      patches: []
+    };
+  }
+  let result = text.trim();
+  const patches = [];
+  let isPartial = false;
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < result.length; i++) {
+    const char = result[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && inString) {
+      escaped = true;
+      continue;
+    }
+    if (char === '"' && !escaped) {
+      inString = !inString;
+      if (inString) {
+        stack.push('"');
+      } else {
+        if (stack.length > 0 && stack[stack.length - 1] === '"') {
+          stack.pop();
+        }
+      }
+      continue;
+    }
+    if (inString) continue;
+    if (char === "{") {
+      stack.push("{");
+    } else if (char === "[") {
+      stack.push("[");
+    } else if (char === "}") {
+      if (stack.length > 0 && stack[stack.length - 1] === "{") {
+        stack.pop();
+      }
+    } else if (char === "]") {
+      if (stack.length > 0 && stack[stack.length - 1] === "[") {
+        stack.pop();
+      }
+    }
+  }
+  if (inString) {
+    patches.push({ type: "unclosed_string", index: result.length });
+    result += '"';
+    isPartial = true;
+    if (stack.length > 0 && stack[stack.length - 1] === '"') {
+      stack.pop();
+    }
+  }
+  if (/,\s*$/.test(result)) {
+    const match = result.match(/,\s*$/);
+    patches.push({ type: "trailing_comma", index: match.index });
+    result = result.replace(/,\s*$/, "");
+    isPartial = true;
+  }
+  while (stack.length > 0) {
+    const open = stack.pop();
+    if (open === "{") {
+      patches.push({ type: "missing_brace", index: result.length });
+      result += "}";
+      isPartial = true;
+    } else if (open === "[") {
+      patches.push({ type: "missing_brace", index: result.length });
+      result += "]";
+      isPartial = true;
+    }
+  }
+  let data = null;
+  try {
+    data = JSON.parse(result);
+  } catch (err) {
+  }
+  return {
+    fixed: result,
+    data,
+    isPartial,
+    patches
+  };
+}
+
+// src/core/scanner.js
+var PATTERNS2 = {
+  // Credit Card - groups of 4 digits separated by spaces or dashes
+  CREDIT_CARD: /\b(?:\d{4}[ -]?){3}\d{4}\b/,
+  // Standard Email
+  EMAIL: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/,
+  // Generic "Secret Key" patterns (sk-, ghp-, etc)
+  API_KEY: /\b(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})\b/,
+  // US SSN (Area-Group-Serial)
+  SSN: /\b\d{3}-\d{2}-\d{4}\b/,
+  // IP Address (IPv4)
+  IPV4: /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/,
+  // AWS Access Key ID
+  AWS_KEY: /\b(AKIA[0-9A-Z]{16})\b/,
+  // JWT Token
+  JWT: /\beyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*\b/
+};
+function scanText(text, options = {}, legacyRedact = false, legacyAllow = [], legacyCustom = []) {
+  let config = {};
+  if (Array.isArray(options)) {
+    config = {
+      rules: options,
+      redact: legacyRedact,
+      allow: legacyAllow,
+      customRules: legacyCustom,
+      mode: "block"
+      // default
+    };
+  } else {
+    config = {
+      rules: [],
+      redact: false,
+      allow: [],
+      customRules: [],
+      mode: "block",
+      ...options
+    };
+  }
+  const { rules = [], redact = false, allow = [], customRules = [], mode = "block" } = config;
+  let cleanText = text;
+  const findings = [];
+  let isClean = true;
+  const allPatterns = { ...PATTERNS2 };
+  for (const rule of customRules) {
+    if (rule.name && rule.pattern) {
+      allPatterns[rule.name] = rule.pattern;
+    }
+  }
+  const rulesToCheck = rules.length > 0 ? rules : Object.keys(allPatterns);
+  const allowPatterns = allow.map(
+    (p) => typeof p === "string" ? new RegExp(p) : p
+  );
+  for (const rule of rulesToCheck) {
+    const regex = allPatterns[rule];
+    if (!regex) continue;
+    const globalRegex = new RegExp(regex.source, "g");
+    const matches = text.match(globalRegex);
+    if (matches && matches.length > 0) {
+      const filteredMatches = matches.filter(
+        (match) => !allowPatterns.some((allow2) => allow2.test(match))
+      );
+      if (filteredMatches.length > 0) {
+        isClean = false;
+        findings.push({ type: rule, matches: filteredMatches });
+      }
+    }
+  }
+  if (!isClean && (redact || mode === "block")) {
+    for (const finding of findings) {
+      for (const match of finding.matches) {
+        cleanText = cleanText.replace(match, `[${finding.type}_REDACTED]`);
+      }
+    }
+  }
+  let status = isClean ? "safe" : "blocked";
+  if (!isClean && mode === "warn") {
+    status = "warning";
+  }
+  const isSafe = isClean || mode === "warn" || mode === "silent";
+  return {
+    safe: isSafe,
+    status,
+    findings,
+    text: cleanText
+  };
+}
+
+// src/core/registry.js
+var PROFILES = /* @__PURE__ */ new Map();
+var DEFAULT_PROFILE = {
+  extractors: [
+    // Standard Markdown Code Block Stripper
+    (text) => text.replace(/^```[a-z]*\s*/i, "").replace(/\s*```$/, ""),
+    // DeepSeek/Reasoning Model <think> Stripper (Handles unclosed tags)
+    (text) => text.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/gi, "").replace(/<\/th$/gi, "")
+  ]
+};
+PROFILES.set("default", DEFAULT_PROFILE);
+function registerProfile(name, config) {
+  PROFILES.set(name, config);
+}
+function getProfile(name) {
+  return PROFILES.get(name) || PROFILES.get("default");
+}
+
+// src/schema/SchemaEngine.js
+import { z } from "zod";
+var SchemaEngine = class {
+  constructor(schema) {
+    if (!schema) throw new Error("SchemaEngine requires a Zod schema");
+    this.schema = schema;
+    this.partialSchema = this._createDeepPartial(schema);
+  }
+  /**
+   * Creates a 'relaxed' schema that allows missing fields/partial data
+   * but enforces the structure that IS present.
+   */
+  _createDeepPartial(schema) {
+    if (typeof schema.deepPartial === "function") {
+      return schema.deepPartial();
+    }
+    if (typeof schema.partial === "function") {
+      return schema.partial();
+    }
+    return schema;
+  }
+  /**
+   * Validates partial data and strips unknown keys (hallucinations).
+   * @param {any} data - The partial JSON from the repair stream
+   * @returns {object} - { data, isValid, errors }
+   */
+  validate(data) {
+    try {
+      const result = this.partialSchema.safeParse(data);
+      if (result.success) {
+        return {
+          data: result.data,
+          isValid: true,
+          errors: []
+        };
+      } else {
+        return {
+          data,
+          // Return raw data if validation fails completely
+          isValid: false,
+          errors: result.error.errors
+        };
+      }
+    } catch (err) {
+      return {
+        data,
+        isValid: false,
+        errors: [{ message: err.message }]
+      };
+    }
+  }
+  /**
+   * Generates a structural skeleton (stub) from the schema.
+   * Used for optimistic UI before the first token arrives.
+   */
+  generateSkeleton() {
+    return this._generateStub(this.schema);
+  }
+  _generateStub(schema) {
+    if (!schema) return null;
+    if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable) {
+      return this._generateStub(schema.unwrap?.() || schema._def.innerType);
+    }
+    if (schema instanceof z.ZodDefault) {
+      return this._generateStub(schema.removeDefault());
+    }
+    if (schema instanceof z.ZodEffects) {
+      return this._generateStub(schema._def.schema);
+    }
+    if (schema instanceof z.ZodString) return "";
+    if (schema instanceof z.ZodNumber) return 0;
+    if (schema instanceof z.ZodBoolean) return false;
+    if (schema instanceof z.ZodArray) return [];
+    if (schema instanceof z.ZodObject) {
+      const shape = schema.shape;
+      const stub = {};
+      for (const key in shape) {
+        stub[key] = this._generateStub(shape[key]);
+      }
+      return stub;
+    }
+    return null;
+  }
+};
+export {
+  AiGuardStream,
+  SchemaEngine,
+  calculateShannonEntropy,
+  extractJSON,
+  getProfile,
+  registerProfile,
+  repairJSON,
+  scanEntropy,
+  scanInjection,
+  scanPII,
+  scanText,
+  stripMarkdown
+};
+//# sourceMappingURL=index.js.map
+
+export const WORKER_CODE_PURE = "\"use strict\";(()=>{var ie=Object.defineProperty;var Qe=(i,s,r)=>s in i?ie(i,s,{enumerable:!0,configurable:!0,writable:!0,value:r}):i[s]=r;var et=(i,s)=>()=>(i&&(s=i(i=0)),s);var tt=(i,s)=>{for(var r in s)ie(i,r,{get:s[r],enumerable:!0})};var oe=(i,s,r)=>Qe(i,typeof s!=\"symbol\"?s+\"\":s,r);var fe={};tt(fe,{default:()=>it});async function st(i={}){var s,r=i,a=!!globalThis.window,o=!!globalThis.WorkerGlobalScope,l=globalThis.process?.versions?.node&&globalThis.process?.type!=\"renderer\",S=[],c=\"./this.program\",g=ot.url,R=\"\",b,f;if(a||o){try{R=new URL(\".\",g).href}catch{}o&&(f=e=>{var t=new XMLHttpRequest;return t.open(\"GET\",e,!1),t.responseType=\"arraybuffer\",t.send(null),new Uint8Array(t.response)}),b=async e=>{var t=await fetch(e,{credentials:\"same-origin\"});if(t.ok)return t.arrayBuffer();throw new Error(t.status+\" : \"+t.url)}}var m=console.log.bind(console),y=console.error.bind(console),_,A=!1;function d(e){for(var t=0,n=e.length,u=new Uint8Array(n),v;t<n;++t)v=e.charCodeAt(t),u[t]=~v>>8&v;return u}var I,x,j,k,C,me,ge,de,he,ye,ve,Ee,G=!1;function Re(){var e=ae.buffer;j=new Int8Array(e),C=new Int16Array(e),k=new Uint8Array(e),me=new Uint16Array(e),ge=new Int32Array(e),de=new Uint32Array(e),he=new Float32Array(e),ye=new Float64Array(e),ve=new BigInt64Array(e),Ee=new BigUint64Array(e)}function _e(){if(r.preRun)for(typeof r.preRun==\"function\"&&(r.preRun=[r.preRun]);r.preRun.length;)Me(r.preRun.shift());V(L)}function Se(){G=!0,O.b()}function we(){if(r.postRun)for(typeof r.postRun==\"function\"&&(r.postRun=[r.postRun]);r.postRun.length;)Ne(r.postRun.shift());V(K)}function be(e){r.onAbort?.(e),e=\"Aborted(\"+e+\")\",y(e),A=!0,e+=\". Build with -sASSERTIONS for more info.\";var t=new WebAssembly.RuntimeError(e);throw x?.(t),t}var Z;function Ie(){return d('\\0asm\u0001\\0\\0\\0\u0001\u0011\u0004`\u0001\\x7F\u0001\\x7F`\\0\u0001\\x7F`\u0001\\x7F\\0`\\0\\0\u0003\u0006\u0005\u0001\\0\u0002\\0\u0003\u0005\\x07\u0001\u0001\\xA2\u0002\\x80\\x80\u0002\u0006\t\u0001\\x7F\u0001A\\x90\\x90\\x84\u0001\\v\\x07\u0019\u0006\u0001a\u0002\\0\u0001b\\0\u0004\u0001c\\0\u0003\u0001d\\0\u0002\u0001e\\0\u0001\u0001f\\0\\0\\f\u0001\u0001\\n\\xC1\u0005\u0005\u0004\\0#\\0\\v\u0010\\0#\\0 \\0kApq\"\\0$\\0 \\0\\v\u0006\\0 \\0$\\0\\v\\x9E\u0005\u0001\\b\\x7FA\\x7F!\u0001A\\x80\\bA\\x7F6\u0002\\0\u0002@\u0002\\x7F\u0002@\u0002@ \\0\"\\x07A\u0003qE\\r\\0A\\0 \\0-\\0\\0E\\r\u0002\u001a\u0003@ \\0A\u0001j\"\\0A\u0003qE\\r\u0001 \\0-\\0\\0\\r\\0\\v\\f\u0001\\v\u0003@ \\0\"\u0005A\u0004j!\\0A\\x80\\x82\\x84\\b \u0005(\u0002\\0\"\\bk \\brA\\x80\\x81\\x82\\x84xqA\\x80\\x81\\x82\\x84xF\\r\\0\\v\u0003@ \u0005\"\\0A\u0001j!\u0005 \\0-\\0\\0\\r\\0\\v\\v \\0 \\x07k\\v\"\u0005A\\0L\\r\\0\u0002\\x7F\u0003@A\\xFF\\xFF\\xFF\\0 \u0002A\\xFF\\xFF\\xFF\\0F\\r\u0001\u001a \u0002 \u0002 \\x07j-\\0\\0\"\\0:\\0\\x90\u0010 \u0006A\u0001q!\u0003A\\0!\u0006\u0002@ \u0003\\r\\0 \\0A\\xDC\\0F\u0004@A\u0001!\u0006\\f\u0001\\v \\0A\"F\u0004@ \u0004A\u0001s!\u0004\\f\u0001\\v \u0004A\u0001q\u0004@A\u0001!\u0004\\f\u0001\\v\u0002@\u0002@\u0002@ \\0A\\xDB\\0G\u0004@ \\0A\\xFB\\0G\\r\u0001 \u0001A\\xFE\\x07J\\r\u0002A\\0!\u0004A\\x80\\b \u0001A\u0001j\"\\x006\u0002\\0 \u0001A\\x91\\bjA\\xFD\\0:\\0\\0 \\0!\u0001\\f\u0003\\v \u0001A\\xFE\\x07J\\r\u0001A\\0!\u0004A\\x80\\b \u0001A\u0001j\"\\x006\u0002\\0 \u0001A\\x91\\bjA\\xDD\\0:\\0\\0 \\0!\u0001\\f\u0002\\vA\\0!\u0004 \\0A\\xDF\u0001qA\\xDD\\0G\\r\u0001 \u0001A\\0H\\r\u0001 \u0001-\\0\\x90\\b \\0G\\r\u0001A\\x80\\b \u0001A\u0001k\"\u00016\u0002\\0\\f\u0001\\vA\\0!\u0004\\v\\v \u0002A\u0001j\"\u0002 \u0005G\\r\\0\\v \u0005\\v!\u0003 \u0004A\u0001q\u0004@ \u0003A\":\\0\\x90\u0010 \u0003A\u0001j!\u0003\\vA\\0!\u0006 \u0001A\\0H\\r\\0\u0002@ \u0001A\u0003qA\u0003F\u0004@ \u0001!\u0002\\f\u0001\\v \u0001A\u0001jA\u0003q!\\0 \u0001!\u0002\u0003@ \u0003A\\x90\u0010j \u0002-\\0\\x90\\b:\\0\\0 \u0003A\u0001j!\u0003 \u0002A\u0001k!\u0002 \u0006A\u0001j\"\u0006 \\0G\\r\\0\\v\\v \u0001A\u0003O\u0004@\u0003@ \u0003A\\x90\u0010j \u0002A\\x90\\bj-\\0\\0:\\0\\0 \u0003A\\x91\u0010j \u0002A\\x8F\\bj-\\0\\0:\\0\\0 \u0003A\\x92\u0010j \u0002A\\x8E\\bj-\\0\\0:\\0\\0 \u0003A\\x93\u0010j \u0002A\\x8D\\bj-\\0\\0:\\0\\0 \u0003A\u0004j!\u0003 \u0002A\u0003G \u0002A\u0004k!\u0002\\r\\0\\v\\vA\\x80\\bA\\x7F6\u0002\\0\\v \u0003A\\x90\u0010jA\\0:\\0\\0A\\x90\u0010\\v\u0002\\0\\v\\v\\v\u0001\\0A\\x80\\b\\v\u0004\\xFF\\xFF\\xFF\\xFF')}function lt(e){return e}async function Te(e){return e}async function Pe(e,t){try{var n=await Te(e),u=await WebAssembly.instantiate(n,t);return u}catch(v){y(`failed to asynchronously prepare wasm: ${v}`),be(v)}}async function xe(e,t,n){return Pe(t,n)}function je(){var e={a:Le};return e}async function ke(){function e(E,p){return O=E.exports,Ke(O),Re(),O}function t(E){return e(E.instance)}var n=je();if(r.instantiateWasm)return new Promise((E,p)=>{r.instantiateWasm(n,(h,P)=>{E(e(h,P))})});Z??(Z=Ie());var u=await xe(_,Z,n),v=t(u);return v}class ft{constructor(t){oe(this,\"name\",\"ExitStatus\");this.message=`Program terminated with exit(${t})`,this.status=t}}for(var V=e=>{for(;e.length>0;)e.shift()(r)},K=[],Ne=e=>K.push(e),L=[],Me=e=>L.push(e),Ce=!0,De=e=>te(e),Oe=()=>ne(),Y=e=>{var t=r[\"_\"+e];return t},Be=(e,t)=>{j.set(e,t)},Ue=e=>{for(var t=0,n=0;n<e.length;++n){var u=e.charCodeAt(n);u<=127?t++:u<=2047?t+=2:u>=55296&&u<=57343?(t+=4,++n):t+=3}return t},Fe=(e,t,n,u)=>{if(!(u>0))return 0;for(var v=n,E=n+u-1,p=0;p<e.length;++p){var h=e.codePointAt(p);if(h<=127){if(n>=E)break;t[n++]=h}else if(h<=2047){if(n+1>=E)break;t[n++]=192|h>>6,t[n++]=128|h&63}else if(h<=65535){if(n+2>=E)break;t[n++]=224|h>>12,t[n++]=128|h>>6&63,t[n++]=128|h&63}else{if(n+3>=E)break;t[n++]=240|h>>18,t[n++]=128|h>>12&63,t[n++]=128|h>>6&63,t[n++]=128|h&63,p++}}return t[n]=0,n-v},We=(e,t,n)=>Fe(e,k,t,n),X=e=>re(e),$e=e=>{var t=Ue(e)+1,n=X(t);return We(e,n,t),n},Q=globalThis.TextDecoder&&new TextDecoder,He=(e,t,n,u)=>{var v=t+n;if(u)return v;for(;e[t]&&!(t>=v);)++t;return t},Je=(e,t=0,n,u)=>{var v=He(e,t,n,u);if(v-t>16&&e.buffer&&Q)return Q.decode(e.subarray(t,v));for(var E=\"\";t<v;){var p=e[t++];if(!(p&128)){E+=String.fromCharCode(p);continue}var h=e[t++]&63;if((p&224)==192){E+=String.fromCharCode((p&31)<<6|h);continue}var P=e[t++]&63;if((p&240)==224?p=(p&15)<<12|h<<6|P:p=(p&7)<<18|h<<12|P<<6|e[t++]&63,p<65536)E+=String.fromCharCode(p);else{var N=p-65536;E+=String.fromCharCode(55296|N>>10,56320|N&1023)}}return E},ze=(e,t,n)=>e?Je(k,e,t,n):\"\",ee=(e,t,n,u,v)=>{var E={string:w=>{var B=0;return w!=null&&w!==0&&(B=$e(w)),B},array:w=>{var B=X(w.length);return Be(w,B),B}};function p(w){return t===\"string\"?ze(w):t===\"boolean\"?!!w:w}var h=Y(e),P=[],N=0;if(u)for(var M=0;M<u.length;M++){var se=E[n[M]];se?(N===0&&(N=Oe()),P[M]=se(u[M])):P[M]=u[M]}var W=h(...P);function Xe(w){return N!==0&&De(N),p(w)}return W=Xe(W),W},qe=(e,t,n,u)=>{var v=!n||n.every(p=>p===\"number\"||p===\"boolean\"),E=t!==\"string\";return E&&v&&!u?Y(e):(...p)=>ee(e,t,n,p,u)},D=new Uint8Array(123),T=25;T>=0;--T)D[48+T]=52+T,D[65+T]=T,D[97+T]=26+T;if(D[43]=62,D[47]=63,r.noExitRuntime&&(Ce=r.noExitRuntime),r.print&&(m=r.print),r.printErr&&(y=r.printErr),r.wasmBinary&&(_=r.wasmBinary),r.arguments&&(S=r.arguments),r.thisProgram&&(c=r.thisProgram),r.preInit)for(typeof r.preInit==\"function\"&&(r.preInit=[r.preInit]);r.preInit.length>0;)r.preInit.shift()();r.ccall=ee,r.cwrap=qe;var Ge,te,re,ne,Ze,Ve,ae;function Ke(e){Ge=r._repair_json=e.c,te=e.d,re=e.e,ne=e.f,Ze=ae=e.a,Ve=e.__indirect_function_table}var Le={};function Ye(){_e();function e(){r.calledRun=!0,!A&&(Se(),I?.(r),r.onRuntimeInitialized?.(),we())}r.setStatus?(r.setStatus(\"Running...\"),setTimeout(()=>{setTimeout(()=>r.setStatus(\"\"),1),e()},1)):e()}var O;return O=await ke(),Ye(),G?s=r:s=new Promise((e,t)=>{I=e,x=t}),s}var ot,it,ue=et(()=>{\"use strict\";ot={};it=st});var ce={CREDIT_CARD:/\\b(?:\\d{4}[ -]?){3}\\d{4}\\b/,EMAIL:/\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b/,API_KEY:/\\b(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})\\b/,SSN:/\\b\\d{3}-\\d{2}-\\d{4}\\b/,IPV4:/\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b/,AWS_KEY:/\\b(AKIA[0-9A-Z]{16})\\b/,JWT:/\\beyJ[a-zA-Z0-9_-]*\\.eyJ[a-zA-Z0-9_-]*\\.[a-zA-Z0-9_-]*\\b/},rt={SSN:[\"ssn\",\"social\",\"security\",\"number\",\"id\"],CREDIT_CARD:[\"cc\",\"card\",\"visa\",\"amex\",\"mastercard\",\"payment\"],API_KEY:[\"key\",\"api\",\"secret\",\"token\"],EMAIL:[\"email\",\"contact\",\"mail\"]};function $(i,s={}){let{rules:r=Object.keys(ce),redact:a=!1,allow:o=[],mode:l=\"block\"}=s,S=i,c=[],g=!0,R=o.map(f=>typeof f==\"string\"?new RegExp(f):f);for(let f of r){let m=ce[f];if(!m)continue;let y=new RegExp(m.source,\"g\"),_;for(;(_=y.exec(i))!==null;){let A=_[0],d=_.index;if(R.some(C=>C.test(A)))continue;let I=Math.max(0,d-25),x=i.slice(I,d).toLowerCase(),j=0,k=rt[f]||[];k.length>0&&k.some(C=>x.includes(C))&&(j=1),c.push({type:f,match:A,context:j>0?\"supported\":\"neutral\"}),g=!1}}if(!g&&(a||l===\"block\")){let f=[...new Set(c.map(m=>m.match))];for(let m of f){let y=c.find(A=>A.match===m)?.type||\"PII\",_=m.replace(/[.*+?^${}()|[\\]\\\\]/g,\"\\\\$&\");S=S.replace(new RegExp(_,\"g\"),`[${y}_REDACTED]`)}}return{hasPII:!g,status:g?\"safe\":l===\"warn\"?\"warning\":\"blocked\",redactedText:S,findings:c}}var nt=[{pattern:/ignore previous instructions/i,score:.9,name:\"IGNORE_PREVIOUS\"},{pattern:/system override/i,score:.9,name:\"SYSTEM_OVERRIDE\"},{pattern:/\\bDAN\\b/i,score:.6,name:\"DAN_MODE\"},{pattern:/dev mode/i,score:.7,name:\"DEV_MODE\"},{pattern:/act as a/i,score:.3,name:\"ACT_AS\"},{pattern:/you are unrestricted/i,score:.95,name:\"UNRESTRICTED\"},{pattern:/disable safety procedures/i,score:1,name:\"DISABLE_SAFETY\"}];function H(i){let s=0,r=!1,a=\"\";for(let o of nt)o.pattern.test(i)&&o.score>s&&(s=o.score,r=!0,a=`Detected pattern: ${o.name}`);return{score:s,isDetected:r,reason:r?a:void 0}}function at(i){if(!i)return 0;let s={},r=i.length;for(let o=0;o<r;o++){let l=i[o];s[l]=(s[l]||0)+1}let a=0;for(let o in s){let l=s[o]/r;a-=l*Math.log2(l)}return a}function J(i,s=5.2){let r=i.split(/\\s+/),a=[];for(let o of r){if(o.length<8)continue;let l=at(o);l>s&&a.push({score:l,isHighEntropy:!0,text:o})}return a}function z(i){if(!i)return\"\";let s=i.trim();return s=s.replace(/^```[a-zA-Z]*\\s*/,\"\"),s=s.replace(/\\s*```$/,\"\"),s}function U(i,s={}){if(!i)return\"\";let{last:r=!0}=s,a=i;a=a.replace(/<think>[\\s\\S]*?<\\/think>/gi,\"\"),a=a.replace(/<think>[\\s\\S]*$/gi,\"\"),a=a.replace(/<\\/th$/gi,\"\");let o=/```(?:json|json5|javascript|js)?\\s*([\\s\\S]*?)(?:```|$)/gi,l=[],S;for(;(S=o.exec(a))!==null;){let A=S[1].trim();A&&(A.startsWith(\"{\")||A.startsWith(\"[\"))&&l.push(A)}if(l.length>0)return r?l[l.length-1]:l[0];let c=[],g=0,R=-1,b=!1,f=!1;for(let A=0;A<a.length;A++){let d=a[A];if(f){f=!1;continue}if(d===\"\\\\\"&&b){f=!0;continue}if(d==='\"'&&!f){b=!b;continue}b||(d===\"{\"||d===\"[\"?(g===0&&(R=A),g++):(d===\"}\"||d===\"]\")&&(g--,g===0&&R!==-1&&(c.push(a.slice(R,A+1)),R=-1)))}if(R!==-1&&g>0&&c.push(a.slice(R)),c.length>0)return r?c[c.length-1]:c[0];let m=a.indexOf(\"{\"),y=a.indexOf(\"[\");if(m===-1&&y===-1)return a.trim();let _=m===-1?y:y===-1?m:Math.min(m,y);return a.slice(_).trim()}function le(i,s={}){let{extract:r=!1}=s,a=r?U(i):z(i);if(!a||!a.trim())return{fixed:\"{}\",data:{},isPartial:!1,patches:[]};let o=a.trim(),l=[],S=!1,c=[],g=!1,R=!1;for(let f=0;f<o.length;f++){let m=o[f];if(R){R=!1;continue}if(m===\"\\\\\"&&g){R=!0;continue}if(m==='\"'&&!R){g=!g,g?c.push('\"'):c.length>0&&c[c.length-1]==='\"'&&c.pop();continue}g||(m===\"{\"?c.push(\"{\"):m===\"[\"?c.push(\"[\"):m===\"}\"?c.length>0&&c[c.length-1]===\"{\"&&c.pop():m===\"]\"&&c.length>0&&c[c.length-1]===\"[\"&&c.pop())}if(g&&(l.push({type:\"unclosed_string\",index:o.length}),o+='\"',S=!0,c.length>0&&c[c.length-1]==='\"'&&c.pop()),/,\\s*$/.test(o)){let f=o.match(/,\\s*$/);l.push({type:\"trailing_comma\",index:f.index}),o=o.replace(/,\\s*$/,\"\"),S=!0}for(;c.length>0;){let f=c.pop();f===\"{\"?(l.push({type:\"missing_brace\",index:o.length}),o+=\"}\",S=!0):f===\"[\"&&(l.push({type:\"missing_brace\",index:o.length}),o+=\"]\",S=!0)}let b=null;try{b=JSON.parse(o)}catch{}return{fixed:o,data:b,isPartial:S,patches:l}}var F=null,pe=null,Ae=!1,q=\"\";async function ct(){if(!F){if(!Ae)throw new Error(\"Wasm Kernel is disabled in this build.\");try{let i=await Promise.resolve().then(()=>(ue(),fe));F=await(i.default||i)(),pe=F.cwrap(\"repair_json\",\"string\",[\"string\"])}catch(i){throw console.error(\"Failed to load Wasm kernel:\",i),i}}}self.onmessage=async i=>{let{id:s,type:r,payload:a,options:o}=i.data;try{let l;switch(r){case\"SCAN_STREAM_CHUNK\":q+=typeof a==\"string\"?a:\"\";let c=q,g=$(c,o?.pii||{}),R=H(c),b=J(c);l={safe:!g.hasPII&&!R.isDetected,pii:g,injection:R,entropy:b,textLength:c.length};break;case\"RESET_STREAM\":q=\"\",l={success:!0};break;case\"SCAN_TEXT\":{let y=typeof a==\"string\"?a:a.text,_=$(y,o?.pii||{}),A=H(y),d=J(y);l={safe:!_.hasPII&&!A.isDetected,pii:_,injection:A,entropy:d}}break;case\"REPAIR_JSON\":{let y=typeof a==\"string\"?a:a?.text,_=o?.extract??a?.extract??!1,A=o?.useWasm&&Ae,d;if(A){F||await ct();let j=_?U(y):z(y);d={fixed:pe(j),data:null,isPartial:!1,patches:[]}}else d=le(y,{extract:_});let I=d.data,x=!0;if(I===null&&d.fixed!==\"null\")try{I=JSON.parse(d.fixed)}catch{x=!1}l={fixedString:d.fixed,data:I,isValid:x,isPartial:d.isPartial,patches:d.patches,mode:A?\"wasm\":\"js\"}}break;case\"EXTRACT_JSON\":let f=typeof a==\"string\"?a:a?.text,m=o?.last??a?.last??!0;l={extracted:U(f,{last:m})};break;default:throw new Error(`Unknown message type: ${r}`)}self.postMessage({id:s,success:!0,payload:l})}catch(l){self.postMessage({id:s,success:!1,error:l.message})}};})();\n";
+export const WORKER_CODE_PRO = "\"use strict\";(()=>{var ie=Object.defineProperty;var Qe=(i,s,r)=>s in i?ie(i,s,{enumerable:!0,configurable:!0,writable:!0,value:r}):i[s]=r;var et=(i,s)=>()=>(i&&(s=i(i=0)),s);var tt=(i,s)=>{for(var r in s)ie(i,r,{get:s[r],enumerable:!0})};var oe=(i,s,r)=>Qe(i,typeof s!=\"symbol\"?s+\"\":s,r);var fe={};tt(fe,{default:()=>it});async function st(i={}){var s,r=i,a=!!globalThis.window,o=!!globalThis.WorkerGlobalScope,l=globalThis.process?.versions?.node&&globalThis.process?.type!=\"renderer\",S=[],c=\"./this.program\",g=ot.url,R=\"\",b,f;if(a||o){try{R=new URL(\".\",g).href}catch{}o&&(f=e=>{var t=new XMLHttpRequest;return t.open(\"GET\",e,!1),t.responseType=\"arraybuffer\",t.send(null),new Uint8Array(t.response)}),b=async e=>{var t=await fetch(e,{credentials:\"same-origin\"});if(t.ok)return t.arrayBuffer();throw new Error(t.status+\" : \"+t.url)}}var m=console.log.bind(console),y=console.error.bind(console),_,A=!1;function d(e){for(var t=0,n=e.length,u=new Uint8Array(n),v;t<n;++t)v=e.charCodeAt(t),u[t]=~v>>8&v;return u}var I,x,j,k,C,me,ge,de,he,ye,ve,Ee,G=!1;function Re(){var e=ae.buffer;j=new Int8Array(e),C=new Int16Array(e),k=new Uint8Array(e),me=new Uint16Array(e),ge=new Int32Array(e),de=new Uint32Array(e),he=new Float32Array(e),ye=new Float64Array(e),ve=new BigInt64Array(e),Ee=new BigUint64Array(e)}function _e(){if(r.preRun)for(typeof r.preRun==\"function\"&&(r.preRun=[r.preRun]);r.preRun.length;)Me(r.preRun.shift());V(L)}function Se(){G=!0,O.b()}function we(){if(r.postRun)for(typeof r.postRun==\"function\"&&(r.postRun=[r.postRun]);r.postRun.length;)Ne(r.postRun.shift());V(K)}function be(e){r.onAbort?.(e),e=\"Aborted(\"+e+\")\",y(e),A=!0,e+=\". Build with -sASSERTIONS for more info.\";var t=new WebAssembly.RuntimeError(e);throw x?.(t),t}var Z;function Ie(){return d('\\0asm\u0001\\0\\0\\0\u0001\u0011\u0004`\u0001\\x7F\u0001\\x7F`\\0\u0001\\x7F`\u0001\\x7F\\0`\\0\\0\u0003\u0006\u0005\u0001\\0\u0002\\0\u0003\u0005\\x07\u0001\u0001\\xA2\u0002\\x80\\x80\u0002\u0006\t\u0001\\x7F\u0001A\\x90\\x90\\x84\u0001\\v\\x07\u0019\u0006\u0001a\u0002\\0\u0001b\\0\u0004\u0001c\\0\u0003\u0001d\\0\u0002\u0001e\\0\u0001\u0001f\\0\\0\\f\u0001\u0001\\n\\xC1\u0005\u0005\u0004\\0#\\0\\v\u0010\\0#\\0 \\0kApq\"\\0$\\0 \\0\\v\u0006\\0 \\0$\\0\\v\\x9E\u0005\u0001\\b\\x7FA\\x7F!\u0001A\\x80\\bA\\x7F6\u0002\\0\u0002@\u0002\\x7F\u0002@\u0002@ \\0\"\\x07A\u0003qE\\r\\0A\\0 \\0-\\0\\0E\\r\u0002\u001a\u0003@ \\0A\u0001j\"\\0A\u0003qE\\r\u0001 \\0-\\0\\0\\r\\0\\v\\f\u0001\\v\u0003@ \\0\"\u0005A\u0004j!\\0A\\x80\\x82\\x84\\b \u0005(\u0002\\0\"\\bk \\brA\\x80\\x81\\x82\\x84xqA\\x80\\x81\\x82\\x84xF\\r\\0\\v\u0003@ \u0005\"\\0A\u0001j!\u0005 \\0-\\0\\0\\r\\0\\v\\v \\0 \\x07k\\v\"\u0005A\\0L\\r\\0\u0002\\x7F\u0003@A\\xFF\\xFF\\xFF\\0 \u0002A\\xFF\\xFF\\xFF\\0F\\r\u0001\u001a \u0002 \u0002 \\x07j-\\0\\0\"\\0:\\0\\x90\u0010 \u0006A\u0001q!\u0003A\\0!\u0006\u0002@ \u0003\\r\\0 \\0A\\xDC\\0F\u0004@A\u0001!\u0006\\f\u0001\\v \\0A\"F\u0004@ \u0004A\u0001s!\u0004\\f\u0001\\v \u0004A\u0001q\u0004@A\u0001!\u0004\\f\u0001\\v\u0002@\u0002@\u0002@ \\0A\\xDB\\0G\u0004@ \\0A\\xFB\\0G\\r\u0001 \u0001A\\xFE\\x07J\\r\u0002A\\0!\u0004A\\x80\\b \u0001A\u0001j\"\\x006\u0002\\0 \u0001A\\x91\\bjA\\xFD\\0:\\0\\0 \\0!\u0001\\f\u0003\\v \u0001A\\xFE\\x07J\\r\u0001A\\0!\u0004A\\x80\\b \u0001A\u0001j\"\\x006\u0002\\0 \u0001A\\x91\\bjA\\xDD\\0:\\0\\0 \\0!\u0001\\f\u0002\\vA\\0!\u0004 \\0A\\xDF\u0001qA\\xDD\\0G\\r\u0001 \u0001A\\0H\\r\u0001 \u0001-\\0\\x90\\b \\0G\\r\u0001A\\x80\\b \u0001A\u0001k\"\u00016\u0002\\0\\f\u0001\\vA\\0!\u0004\\v\\v \u0002A\u0001j\"\u0002 \u0005G\\r\\0\\v \u0005\\v!\u0003 \u0004A\u0001q\u0004@ \u0003A\":\\0\\x90\u0010 \u0003A\u0001j!\u0003\\vA\\0!\u0006 \u0001A\\0H\\r\\0\u0002@ \u0001A\u0003qA\u0003F\u0004@ \u0001!\u0002\\f\u0001\\v \u0001A\u0001jA\u0003q!\\0 \u0001!\u0002\u0003@ \u0003A\\x90\u0010j \u0002-\\0\\x90\\b:\\0\\0 \u0003A\u0001j!\u0003 \u0002A\u0001k!\u0002 \u0006A\u0001j\"\u0006 \\0G\\r\\0\\v\\v \u0001A\u0003O\u0004@\u0003@ \u0003A\\x90\u0010j \u0002A\\x90\\bj-\\0\\0:\\0\\0 \u0003A\\x91\u0010j \u0002A\\x8F\\bj-\\0\\0:\\0\\0 \u0003A\\x92\u0010j \u0002A\\x8E\\bj-\\0\\0:\\0\\0 \u0003A\\x93\u0010j \u0002A\\x8D\\bj-\\0\\0:\\0\\0 \u0003A\u0004j!\u0003 \u0002A\u0003G \u0002A\u0004k!\u0002\\r\\0\\v\\vA\\x80\\bA\\x7F6\u0002\\0\\v \u0003A\\x90\u0010jA\\0:\\0\\0A\\x90\u0010\\v\u0002\\0\\v\\v\\v\u0001\\0A\\x80\\b\\v\u0004\\xFF\\xFF\\xFF\\xFF')}function lt(e){return e}async function Te(e){return e}async function Pe(e,t){try{var n=await Te(e),u=await WebAssembly.instantiate(n,t);return u}catch(v){y(`failed to asynchronously prepare wasm: ${v}`),be(v)}}async function xe(e,t,n){return Pe(t,n)}function je(){var e={a:Le};return e}async function ke(){function e(E,p){return O=E.exports,Ke(O),Re(),O}function t(E){return e(E.instance)}var n=je();if(r.instantiateWasm)return new Promise((E,p)=>{r.instantiateWasm(n,(h,P)=>{E(e(h,P))})});Z??(Z=Ie());var u=await xe(_,Z,n),v=t(u);return v}class ft{constructor(t){oe(this,\"name\",\"ExitStatus\");this.message=`Program terminated with exit(${t})`,this.status=t}}for(var V=e=>{for(;e.length>0;)e.shift()(r)},K=[],Ne=e=>K.push(e),L=[],Me=e=>L.push(e),Ce=!0,De=e=>te(e),Oe=()=>ne(),Y=e=>{var t=r[\"_\"+e];return t},Be=(e,t)=>{j.set(e,t)},Ue=e=>{for(var t=0,n=0;n<e.length;++n){var u=e.charCodeAt(n);u<=127?t++:u<=2047?t+=2:u>=55296&&u<=57343?(t+=4,++n):t+=3}return t},Fe=(e,t,n,u)=>{if(!(u>0))return 0;for(var v=n,E=n+u-1,p=0;p<e.length;++p){var h=e.codePointAt(p);if(h<=127){if(n>=E)break;t[n++]=h}else if(h<=2047){if(n+1>=E)break;t[n++]=192|h>>6,t[n++]=128|h&63}else if(h<=65535){if(n+2>=E)break;t[n++]=224|h>>12,t[n++]=128|h>>6&63,t[n++]=128|h&63}else{if(n+3>=E)break;t[n++]=240|h>>18,t[n++]=128|h>>12&63,t[n++]=128|h>>6&63,t[n++]=128|h&63,p++}}return t[n]=0,n-v},We=(e,t,n)=>Fe(e,k,t,n),X=e=>re(e),$e=e=>{var t=Ue(e)+1,n=X(t);return We(e,n,t),n},Q=globalThis.TextDecoder&&new TextDecoder,He=(e,t,n,u)=>{var v=t+n;if(u)return v;for(;e[t]&&!(t>=v);)++t;return t},Je=(e,t=0,n,u)=>{var v=He(e,t,n,u);if(v-t>16&&e.buffer&&Q)return Q.decode(e.subarray(t,v));for(var E=\"\";t<v;){var p=e[t++];if(!(p&128)){E+=String.fromCharCode(p);continue}var h=e[t++]&63;if((p&224)==192){E+=String.fromCharCode((p&31)<<6|h);continue}var P=e[t++]&63;if((p&240)==224?p=(p&15)<<12|h<<6|P:p=(p&7)<<18|h<<12|P<<6|e[t++]&63,p<65536)E+=String.fromCharCode(p);else{var N=p-65536;E+=String.fromCharCode(55296|N>>10,56320|N&1023)}}return E},ze=(e,t,n)=>e?Je(k,e,t,n):\"\",ee=(e,t,n,u,v)=>{var E={string:w=>{var B=0;return w!=null&&w!==0&&(B=$e(w)),B},array:w=>{var B=X(w.length);return Be(w,B),B}};function p(w){return t===\"string\"?ze(w):t===\"boolean\"?!!w:w}var h=Y(e),P=[],N=0;if(u)for(var M=0;M<u.length;M++){var se=E[n[M]];se?(N===0&&(N=Oe()),P[M]=se(u[M])):P[M]=u[M]}var W=h(...P);function Xe(w){return N!==0&&De(N),p(w)}return W=Xe(W),W},qe=(e,t,n,u)=>{var v=!n||n.every(p=>p===\"number\"||p===\"boolean\"),E=t!==\"string\";return E&&v&&!u?Y(e):(...p)=>ee(e,t,n,p,u)},D=new Uint8Array(123),T=25;T>=0;--T)D[48+T]=52+T,D[65+T]=T,D[97+T]=26+T;if(D[43]=62,D[47]=63,r.noExitRuntime&&(Ce=r.noExitRuntime),r.print&&(m=r.print),r.printErr&&(y=r.printErr),r.wasmBinary&&(_=r.wasmBinary),r.arguments&&(S=r.arguments),r.thisProgram&&(c=r.thisProgram),r.preInit)for(typeof r.preInit==\"function\"&&(r.preInit=[r.preInit]);r.preInit.length>0;)r.preInit.shift()();r.ccall=ee,r.cwrap=qe;var Ge,te,re,ne,Ze,Ve,ae;function Ke(e){Ge=r._repair_json=e.c,te=e.d,re=e.e,ne=e.f,Ze=ae=e.a,Ve=e.__indirect_function_table}var Le={};function Ye(){_e();function e(){r.calledRun=!0,!A&&(Se(),I?.(r),r.onRuntimeInitialized?.(),we())}r.setStatus?(r.setStatus(\"Running...\"),setTimeout(()=>{setTimeout(()=>r.setStatus(\"\"),1),e()},1)):e()}var O;return O=await ke(),Ye(),G?s=r:s=new Promise((e,t)=>{I=e,x=t}),s}var ot,it,ue=et(()=>{\"use strict\";ot={};it=st});var ce={CREDIT_CARD:/\\b(?:\\d{4}[ -]?){3}\\d{4}\\b/,EMAIL:/\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b/,API_KEY:/\\b(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})\\b/,SSN:/\\b\\d{3}-\\d{2}-\\d{4}\\b/,IPV4:/\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b/,AWS_KEY:/\\b(AKIA[0-9A-Z]{16})\\b/,JWT:/\\beyJ[a-zA-Z0-9_-]*\\.eyJ[a-zA-Z0-9_-]*\\.[a-zA-Z0-9_-]*\\b/},rt={SSN:[\"ssn\",\"social\",\"security\",\"number\",\"id\"],CREDIT_CARD:[\"cc\",\"card\",\"visa\",\"amex\",\"mastercard\",\"payment\"],API_KEY:[\"key\",\"api\",\"secret\",\"token\"],EMAIL:[\"email\",\"contact\",\"mail\"]};function $(i,s={}){let{rules:r=Object.keys(ce),redact:a=!1,allow:o=[],mode:l=\"block\"}=s,S=i,c=[],g=!0,R=o.map(f=>typeof f==\"string\"?new RegExp(f):f);for(let f of r){let m=ce[f];if(!m)continue;let y=new RegExp(m.source,\"g\"),_;for(;(_=y.exec(i))!==null;){let A=_[0],d=_.index;if(R.some(C=>C.test(A)))continue;let I=Math.max(0,d-25),x=i.slice(I,d).toLowerCase(),j=0,k=rt[f]||[];k.length>0&&k.some(C=>x.includes(C))&&(j=1),c.push({type:f,match:A,context:j>0?\"supported\":\"neutral\"}),g=!1}}if(!g&&(a||l===\"block\")){let f=[...new Set(c.map(m=>m.match))];for(let m of f){let y=c.find(A=>A.match===m)?.type||\"PII\",_=m.replace(/[.*+?^${}()|[\\]\\\\]/g,\"\\\\$&\");S=S.replace(new RegExp(_,\"g\"),`[${y}_REDACTED]`)}}return{hasPII:!g,status:g?\"safe\":l===\"warn\"?\"warning\":\"blocked\",redactedText:S,findings:c}}var nt=[{pattern:/ignore previous instructions/i,score:.9,name:\"IGNORE_PREVIOUS\"},{pattern:/system override/i,score:.9,name:\"SYSTEM_OVERRIDE\"},{pattern:/\\bDAN\\b/i,score:.6,name:\"DAN_MODE\"},{pattern:/dev mode/i,score:.7,name:\"DEV_MODE\"},{pattern:/act as a/i,score:.3,name:\"ACT_AS\"},{pattern:/you are unrestricted/i,score:.95,name:\"UNRESTRICTED\"},{pattern:/disable safety procedures/i,score:1,name:\"DISABLE_SAFETY\"}];function H(i){let s=0,r=!1,a=\"\";for(let o of nt)o.pattern.test(i)&&o.score>s&&(s=o.score,r=!0,a=`Detected pattern: ${o.name}`);return{score:s,isDetected:r,reason:r?a:void 0}}function at(i){if(!i)return 0;let s={},r=i.length;for(let o=0;o<r;o++){let l=i[o];s[l]=(s[l]||0)+1}let a=0;for(let o in s){let l=s[o]/r;a-=l*Math.log2(l)}return a}function J(i,s=5.2){let r=i.split(/\\s+/),a=[];for(let o of r){if(o.length<8)continue;let l=at(o);l>s&&a.push({score:l,isHighEntropy:!0,text:o})}return a}function z(i){if(!i)return\"\";let s=i.trim();return s=s.replace(/^```[a-zA-Z]*\\s*/,\"\"),s=s.replace(/\\s*```$/,\"\"),s}function U(i,s={}){if(!i)return\"\";let{last:r=!0}=s,a=i;a=a.replace(/<think>[\\s\\S]*?<\\/think>/gi,\"\"),a=a.replace(/<think>[\\s\\S]*$/gi,\"\"),a=a.replace(/<\\/th$/gi,\"\");let o=/```(?:json|json5|javascript|js)?\\s*([\\s\\S]*?)(?:```|$)/gi,l=[],S;for(;(S=o.exec(a))!==null;){let A=S[1].trim();A&&(A.startsWith(\"{\")||A.startsWith(\"[\"))&&l.push(A)}if(l.length>0)return r?l[l.length-1]:l[0];let c=[],g=0,R=-1,b=!1,f=!1;for(let A=0;A<a.length;A++){let d=a[A];if(f){f=!1;continue}if(d===\"\\\\\"&&b){f=!0;continue}if(d==='\"'&&!f){b=!b;continue}b||(d===\"{\"||d===\"[\"?(g===0&&(R=A),g++):(d===\"}\"||d===\"]\")&&(g--,g===0&&R!==-1&&(c.push(a.slice(R,A+1)),R=-1)))}if(R!==-1&&g>0&&c.push(a.slice(R)),c.length>0)return r?c[c.length-1]:c[0];let m=a.indexOf(\"{\"),y=a.indexOf(\"[\");if(m===-1&&y===-1)return a.trim();let _=m===-1?y:y===-1?m:Math.min(m,y);return a.slice(_).trim()}function le(i,s={}){let{extract:r=!1}=s,a=r?U(i):z(i);if(!a||!a.trim())return{fixed:\"{}\",data:{},isPartial:!1,patches:[]};let o=a.trim(),l=[],S=!1,c=[],g=!1,R=!1;for(let f=0;f<o.length;f++){let m=o[f];if(R){R=!1;continue}if(m===\"\\\\\"&&g){R=!0;continue}if(m==='\"'&&!R){g=!g,g?c.push('\"'):c.length>0&&c[c.length-1]==='\"'&&c.pop();continue}g||(m===\"{\"?c.push(\"{\"):m===\"[\"?c.push(\"[\"):m===\"}\"?c.length>0&&c[c.length-1]===\"{\"&&c.pop():m===\"]\"&&c.length>0&&c[c.length-1]===\"[\"&&c.pop())}if(g&&(l.push({type:\"unclosed_string\",index:o.length}),o+='\"',S=!0,c.length>0&&c[c.length-1]==='\"'&&c.pop()),/,\\s*$/.test(o)){let f=o.match(/,\\s*$/);l.push({type:\"trailing_comma\",index:f.index}),o=o.replace(/,\\s*$/,\"\"),S=!0}for(;c.length>0;){let f=c.pop();f===\"{\"?(l.push({type:\"missing_brace\",index:o.length}),o+=\"}\",S=!0):f===\"[\"&&(l.push({type:\"missing_brace\",index:o.length}),o+=\"]\",S=!0)}let b=null;try{b=JSON.parse(o)}catch{}return{fixed:o,data:b,isPartial:S,patches:l}}var F=null,pe=null,Ae=!0,q=\"\";async function ct(){if(!F){if(!Ae)throw new Error(\"Wasm Kernel is disabled in this build.\");try{let i=await Promise.resolve().then(()=>(ue(),fe));F=await(i.default||i)(),pe=F.cwrap(\"repair_json\",\"string\",[\"string\"])}catch(i){throw console.error(\"Failed to load Wasm kernel:\",i),i}}}self.onmessage=async i=>{let{id:s,type:r,payload:a,options:o}=i.data;try{let l;switch(r){case\"SCAN_STREAM_CHUNK\":q+=typeof a==\"string\"?a:\"\";let c=q,g=$(c,o?.pii||{}),R=H(c),b=J(c);l={safe:!g.hasPII&&!R.isDetected,pii:g,injection:R,entropy:b,textLength:c.length};break;case\"RESET_STREAM\":q=\"\",l={success:!0};break;case\"SCAN_TEXT\":{let y=typeof a==\"string\"?a:a.text,_=$(y,o?.pii||{}),A=H(y),d=J(y);l={safe:!_.hasPII&&!A.isDetected,pii:_,injection:A,entropy:d}}break;case\"REPAIR_JSON\":{let y=typeof a==\"string\"?a:a?.text,_=o?.extract??a?.extract??!1,A=o?.useWasm&&Ae,d;if(A){F||await ct();let j=_?U(y):z(y);d={fixed:pe(j),data:null,isPartial:!1,patches:[]}}else d=le(y,{extract:_});let I=d.data,x=!0;if(I===null&&d.fixed!==\"null\")try{I=JSON.parse(d.fixed)}catch{x=!1}l={fixedString:d.fixed,data:I,isValid:x,isPartial:d.isPartial,patches:d.patches,mode:A?\"wasm\":\"js\"}}break;case\"EXTRACT_JSON\":let f=typeof a==\"string\"?a:a?.text,m=o?.last??a?.last??!0;l={extracted:U(f,{last:m})};break;default:throw new Error(`Unknown message type: ${r}`)}self.postMessage({id:s,success:!0,payload:l})}catch(l){self.postMessage({id:s,success:!1,error:l.message})}};})();\n";
