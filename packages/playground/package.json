@@ -12,7 +12,8 @@
     "dependencies": {
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
-        "@ai-guard/react": "1.5.0-beta.1",
+        "@ai-guard/core": "workspace:*",
+        "@ai-guard/react": "workspace:*",
         "zod": "^3.23.8"
     },
     "devDependencies": {

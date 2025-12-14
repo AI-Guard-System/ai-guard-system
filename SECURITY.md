@@ -1,22 +1,25 @@
-# Security Policy
+# Security Policy & Defense in Depth
 
-## Supported Versions
+## Client-Side Limitations
 
-Use this section to tell people about which versions of your project are currently being supported with security updates.
+**React AI Guard** operates primarily in the client's browser (or Edge runtime). While it provides robust "Defense in Depth" (e.g., preventing accidental PII leaks or checking inputs before they leave the browser), **it is not a replacement for server-side security.**
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.x     | :white_check_mark: |
-| < 1.0   | :x:                |
+### 1. Browser Environment
+- The API keys and logic reside in the user's browser memory. Sophisticated attackers who control the browser can bypass these checks (e.g., by disabling JavaScript or modifying the Worker).
+- **Recommendation:** Always validate sensitive operations (like API calls) on your backend.
+
+### 2. Regex & Heuristics
+- Our detection engines (Shannon Entropy, Injection Heuristics, PII Regex) are probabilistic. They may have false positives or false negatives.
+- **Recommendation:** Treat the `score` as a signal, not an absolute truth.
+
+### 3. API Key Management
+- Never hardcode production API keys in client-side code, even with this guard in place.
+- Use a proxy server or Backend-for-Frontend (BFF) to hold keys.
+- AI Guard helps detect *accidental* inclusion of keys in user prompts, not malicious key extraction from your source code.
 
 ## Reporting a Vulnerability
 
-We take security seriously. If you discover a vulnerability, please do NOT report it via GitHub Issues.
+If you bypass the guard in a novel way that could affect many users, please report it.
 
-Instead, please email us directly at **[INSERT EMAIL HERE]**.
-
-1.  Please provide a detailed description of the vulnerability.
-2.  Steps to reproduce the issue.
-3.  Any relevant code snippets or proof-of-concept.
-
-We will acknowledge your report within 48 hours and provide a timeline for a fix.
+Email: security@ai-guard.dev
+We allow 48 hours for triage.

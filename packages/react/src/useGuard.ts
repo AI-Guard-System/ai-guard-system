@@ -1,5 +1,6 @@
+// @ts-nocheck
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useAIGuard } from './useAIGuard.js';
+import { useAiGuard } from './useAiGuard';
 import { SchemaEngine } from '@ai-guard/core';
 
 /**

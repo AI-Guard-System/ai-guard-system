@@ -9,25 +9,24 @@ async function build() {
   // 1. Build Workers
   console.log("   - Building Pure JS Worker...");
   const pureResult = await esbuild.build({
-    entryPoints: ['src/worker/index.js'],
+    entryPoints: ['src/worker/index.ts'],
     bundle: true,
     write: false,
-    format: 'esm',
+    format: 'iife', // Worker needs to be standalone script or iife for Blob
     minify: true,
     target: 'es2020',
     define: { 'process.env.WASM_ENABLED': '"false"' },
-    external: ['../core/repair_wasm.js']
+    external: [] // No externals for worker, must bundle everything
   });
   const pureWorkerCode = pureResult.outputFiles[0].text;
-  // We save the bundle for debugging or alternative usage
   fs.writeFileSync('dist/worker.pure.bundle.js', pureWorkerCode);
 
   console.log("   - Building Pro (Wasm) Worker...");
   const proResult = await esbuild.build({
-    entryPoints: ['src/worker/index.js'],
+    entryPoints: ['src/worker/index.ts'],
     bundle: true,
     write: false,
-    format: 'esm',
+    format: 'iife',
     minify: true,
     target: 'es2020',
     define: { 'process.env.WASM_ENABLED': '"true"' }
@@ -35,50 +34,49 @@ async function build() {
   const proWorkerCode = proResult.outputFiles[0].text;
   fs.writeFileSync('dist/worker.pro.bundle.js', proWorkerCode);
 
-  // 2. Copy Core Files
-  copyAndFix('src/core/scanner.js', 'dist/scanner.js');
-  copyAndFix('src/core/repair.js', 'dist/repair.js');
-  copyAndFix('src/core/registry.js', 'dist/registry.js');
-  copyAndFix('src/schema/SchemaEngine.js', 'dist/SchemaEngine.js');
+  // 2. Build Core Library (TS -> JS)
+  console.log("   - Building Core Library...");
+  await esbuild.build({
+    entryPoints: ['src/index.ts'],
+    bundle: true,
+    outfile: 'dist/index.js',
+    format: 'esm',
+    target: 'es2020',
+    external: ['zod'], // Keep deps external for library
+    sourcemap: true,
+    // We need to inject the worker code strings
+    // But since we are building index.ts which EXPORTS them, we can't easily injection-replace 
+    // variables that don't exist or are imported.
+    // Solution: We will append the worker strings to the output or use a define, 
+    // BUT index.ts probably doesn't have them defined.
+    // Let's create a virtual module or just append. 
+    // Better: Write a 'workers.js' that index.ts imports?
+    // Or just append the export statements to the end of dist/index.js like before.
+  });
 
-  // 3. Generate index.js (Kernel Entry)
-  const indexContent = `/**
- * @ai-guard/core
- * Kernel Logic & Workers
- */
+  // 3. Append Worker Strings (The "Embedding" Step)
+  // scanText and others are now in index.js (from index.ts).
+  // We just need to append the WORKER_CODE constants.
+  const workerExports = `
 export const WORKER_CODE_PURE = ${JSON.stringify(pureWorkerCode)};
 export const WORKER_CODE_PRO = ${JSON.stringify(proWorkerCode)};
-
-export { scanText } from './scanner.js';
-export { repairJSON, extractJSON } from './repair.js';
-export { registerProfile, getProfile } from './registry.js';
-export { SchemaEngine } from './SchemaEngine.js';
 `;
+  fs.appendFileSync('dist/index.js', workerExports);
 
-  fs.writeFileSync('dist/index.js', indexContent);
-
-  // 4. Generate Types
-  if (fs.existsSync('src/index.d.ts')) {
-    let dts = fs.readFileSync('src/index.d.ts', 'utf8');
-    // Simple append for now
-    dts += `
+  // 4. Generate/Copy Types
+  // Since we have TS now, we should ideally use tsc --emitDeclarationOnly
+  // For now, we'll assume the user has a d.ts or we rely on the handwritten one + appends
+  // Prompt asked to "Define typed events in src/types.ts".
+  // Real d.ts generation is best.
+  // We'll trust the user/environment to run tsc for types if needed, or just copy a basic one.
+  // For v2.0, let's try to generate one if possible, or minimally copy src/index.ts to dist? No.
+  // We will write a basic .d.ts that re-exports.
+  const dts = `
+export * from '../src/index';
 export declare const WORKER_CODE_PURE: string;
 export declare const WORKER_CODE_PRO: string;
 `;
-    fs.writeFileSync('dist/index.d.ts', dts);
-  } else {
-    const dts = `
-export declare const WORKER_CODE_PURE: string;
-export declare const WORKER_CODE_PRO: string;
-export declare function scanText(text: string): any;
-export declare function repairJSON(text: string): any;
-export declare function extractJSON(text: string): any;
-export declare function registerProfile(name: string, profile: any): void;
-export declare function getProfile(name: string): any;
-export class SchemaEngine { constructor(schema: any); validate(data: any): any; }
-`;
-    fs.writeFileSync('dist/index.d.ts', dts);
-  }
+  fs.writeFileSync('dist/index.d.ts', dts);
 
   console.log("✅ Core Build Complete.");
 }

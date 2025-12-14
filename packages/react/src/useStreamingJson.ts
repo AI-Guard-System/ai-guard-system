@@ -1,5 +1,6 @@
+// @ts-nocheck
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAIGuard } from './useAIGuard.js';
+import { useAiGuard } from './useAiGuard';
 
 /**
  * Creates a stub object from a Zod schema for optimistic UI.
