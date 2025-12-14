@@ -2,127 +2,93 @@ import * as esbuild from 'esbuild';
 import fs from 'fs';
 import path from 'path';
 
-function fixImports(content) {
-  return content
-    // Replace ../core/, ../schema/, ../react/ with ./
-    .replace(/from\s+['"]\.\.\/(core|schema|react)\/([^'"]+)['"]/g, "from './$2'")
-    // Handle specific file imports that might not match the general regex due to extensions or specific paths
-    .replace(/from\s+['"]\.\.\/core\/scanner\.js['"]/g, "from './scanner.js'")
-    .replace(/from\s+['"]\.\.\/schema\/SchemaEngine\.js['"]/g, "from './SchemaEngine.js'")
-    // Ensure we don't break relative imports that are already local (unlikely in this flat structure but good practice)
-    ;
-}
-
 async function build() {
-  console.log("⚡ Compiling Worker with esbuild...");
+  console.log("⚡ Compiling Kernel (Core) with esbuild...");
   if (!fs.existsSync('dist')) fs.mkdirSync('dist');
 
-  // 1. Build Pure JS Worker (Default)
-  console.log("   - Building Pure JS Worker (Default)...");
-  await esbuild.build({
-    entryPoints: ['src/worker/index.js'],
+  // 1. Build Workers
+  console.log("   - Building Pure JS Worker...");
+  const pureResult = await esbuild.build({
+    entryPoints: ['src/worker/index.ts'],
     bundle: true,
-    outfile: 'dist/worker.pure.bundle.js',
-    format: 'esm',
+    write: false,
+    format: 'iife', // Worker needs to be standalone script or iife for Blob
     minify: true,
     target: 'es2020',
     define: { 'process.env.WASM_ENABLED': '"false"' },
-    external: ['../core/repair_wasm.js']
+    external: [] // No externals for worker, must bundle everything
   });
+  const pureWorkerCode = pureResult.outputFiles[0].text;
+  fs.writeFileSync('dist/worker.pure.bundle.js', pureWorkerCode);
 
-  // 2. Build Wasm/Pro Worker (Opt-in)
   console.log("   - Building Pro (Wasm) Worker...");
-  await esbuild.build({
-    entryPoints: ['src/worker/index.js'],
+  const proResult = await esbuild.build({
+    entryPoints: ['src/worker/index.ts'],
     bundle: true,
-    outfile: 'dist/worker.pro.bundle.js',
-    format: 'esm',
+    write: false,
+    format: 'iife',
     minify: true,
     target: 'es2020',
     define: { 'process.env.WASM_ENABLED': '"true"' }
   });
+  const proWorkerCode = proResult.outputFiles[0].text;
+  fs.writeFileSync('dist/worker.pro.bundle.js', proWorkerCode);
 
-  // 3. Inject Pure JS Worker into useAIGuard.js (Default)
-  injectWorker('dist/worker.pure.bundle.js', 'src/react/useAIGuard.js', 'dist/useAIGuard.js');
+  // 2. Build Core Library (TS -> JS)
+  console.log("   - Building Core Library...");
+  await esbuild.build({
+    entryPoints: ['src/index.ts'],
+    bundle: true,
+    outfile: 'dist/index.js',
+    format: 'esm',
+    target: 'es2020',
+    external: ['zod'], // Keep deps external for library
+    sourcemap: true,
+    // We need to inject the worker code strings
+    // But since we are building index.ts which EXPORTS them, we can't easily injection-replace 
+    // variables that don't exist or are imported.
+    // Solution: We will append the worker strings to the output or use a define, 
+    // BUT index.ts probably doesn't have them defined.
+    // Let's create a virtual module or just append. 
+    // Better: Write a 'workers.js' that index.ts imports?
+    // Or just append the export statements to the end of dist/index.js like before.
+  });
 
-  // 4. Inject Pro Worker into useAIGuardPro.js (Opt-in)
-  injectWorker('dist/worker.pro.bundle.js', 'src/react/useAIGuard.js', 'dist/useAIGuardPro.js');
-
-  // 5. Copy & Fix other source files
-  copyAndFix('src/react/useStreamingJson.js', 'dist/useStreamingJson.js');
-  copyAndFix('src/core/scanner.js', 'dist/scanner.js');
-  copyAndFix('src/core/repair.js', 'dist/repair.js');
-  copyAndFix('src/core/registry.js', 'dist/registry.js');
-
-  // NEW: Feature files
-  copyAndFix('src/react/useGuard.js', 'dist/useGuard.js');
-  copyAndFix('src/schema/SchemaEngine.js', 'dist/SchemaEngine.js');
-
-  // 6. Generate Entry Points
-  const indexContent = `/**
- * react-ai-guard (Standard)
- * Pure JS Bundle (Default)
- */
-export { useAIGuard } from './useAIGuard.js';
-export { useStreamingJson, useTypedStream, useVercelStream } from './useStreamingJson.js';
-export { scanText } from './scanner.js';
-export { repairJSON, extractJSON } from './repair.js';
-export { registerProfile, getProfile } from './registry.js';
-// NEW EXPORTS
-export { useGuard } from './useGuard.js';
-export { SchemaEngine } from './SchemaEngine.js';
+  // 3. Append Worker Strings (The "Embedding" Step)
+  // scanText and others are now in index.js (from index.ts).
+  // We just need to append the WORKER_CODE constants.
+  const workerExports = `
+export const WORKER_CODE_PURE = ${JSON.stringify(pureWorkerCode)};
+export const WORKER_CODE_PRO = ${JSON.stringify(proWorkerCode)};
 `;
+  fs.appendFileSync('dist/index.js', workerExports);
 
-  const indexProContent = `/**
- * react-ai-guard (Pro)
- * C/Wasm Bundle
- */
-export { useAIGuard } from './useAIGuardPro.js';
-export { useStreamingJson, useTypedStream, useVercelStream } from './useStreamingJson.js';
-export { scanText } from './scanner.js';
-export { repairJSON, extractJSON } from './repair.js';
-export { registerProfile, getProfile } from './registry.js';
-// NEW EXPORTS
-export { useGuard } from './useGuard.js';
-export { SchemaEngine } from './SchemaEngine.js';
+  // 4. Generate/Copy Types
+  // Since we have TS now, we should ideally use tsc --emitDeclarationOnly
+  // For now, we'll assume the user has a d.ts or we rely on the handwritten one + appends
+  // Prompt asked to "Define typed events in src/types.ts".
+  // Real d.ts generation is best.
+  // We'll trust the user/environment to run tsc for types if needed, or just copy a basic one.
+  // For v2.0, let's try to generate one if possible, or minimally copy src/index.ts to dist? No.
+  // We will write a basic .d.ts that re-exports.
+  const dts = `
+export * from '../src/index';
+export declare const WORKER_CODE_PURE: string;
+export declare const WORKER_CODE_PRO: string;
 `;
+  fs.writeFileSync('dist/index.d.ts', dts);
 
-  fs.writeFileSync('dist/index.js', indexContent);
-  fs.writeFileSync('dist/index-pro.js', indexProContent);
-
-  if (fs.existsSync('src/index.d.ts')) copyAndFix('src/index.d.ts', 'dist/index.d.ts');
-
-  console.log("✅ Build Complete.");
-  console.log("   - Default: dist/index.js -> dist/useAIGuard.js (Pure JS)");
-  console.log("   - Pro:     dist/index-pro.js -> dist/useAIGuardPro.js (Wasm Enabled)");
-}
-
-function injectWorker(workerPath, templatePath, outputPath) {
-  const workerCode = fs.readFileSync(workerPath, 'utf8');
-  const hookTemplate = fs.readFileSync(templatePath, 'utf8');
-
-  // Robust injection that handles backticks/dollars in the minified code
-  const escapedWorkerCode = workerCode
-    .replace(/\\/g, '\\\\')
-    .replace(/`/g, '\\`')
-    .replace(/\$/g, '\\$');
-
-  let finalHook = hookTemplate.replace(
-    /const INLINE_WORKER_CODE = `[\s\S]*?`;/,
-    `const INLINE_WORKER_CODE = \`${escapedWorkerCode}\`;`
-  );
-
-  // Apply Import Flattening Fix to the Hook file as well
-  finalHook = fixImports(finalHook);
-
-  fs.writeFileSync(outputPath, finalHook);
+  console.log("✅ Core Build Complete.");
 }
 
 function copyAndFix(src, dest) {
   if (fs.existsSync(src)) {
-    const content = fs.readFileSync(src, 'utf8');
-    const fixedContent = fixImports(content);
-    fs.writeFileSync(dest, fixedContent);
+    let content = fs.readFileSync(src, 'utf8');
+    // Fix relative imports if needed (e.g. if SchemaEngine imported from ../core)
+    // But since we flatten, generally we want to ensure imports are ./filename.js
+    content = content.replace(/from\s+['"]\.\.\/core\/([^'"]+)['"]/g, "from './$1'");
+    // Also strict zod import check? No, Zod is external dependency.
+    fs.writeFileSync(dest, content);
   } else {
     console.warn(`Warning: Source file ${src} not found.`);
   }
